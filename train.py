@@ -67,24 +67,23 @@ def seq2seq_pad_concat_convert(xy_batch, device, eos_id=1, bos_id=3):
     x_seqs, y_seqs = zip(*xy_batch)
     x_block = convert.concat_examples(x_seqs, device, padding=0)
     y_block = convert.concat_examples(y_seqs, device, padding=0)
-    xp = np
 
     # The paper did not mention eos
     # add eos
 
-    x_block = xp.pad(x_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
+    x_block = np.pad(x_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
 
     for i_batch, seq in enumerate(x_seqs):
         x_block[i_batch, len(seq)] = eos_id
 
-    x_block = xp.pad(x_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
+    x_block = np.pad(x_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
 
-    y_out_block = xp.pad(y_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
+    y_out_block = np.pad(y_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
 
     for i_batch, seq in enumerate(y_seqs):
         y_out_block[i_batch, len(seq)] = eos_id
 
-    y_in_block = xp.pad(y_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
+    y_in_block = np.pad(y_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
 
     # Converting from numpy format to Torch Tensor
     x_block, y_in_block, y_out_block = Variable(torch.LongTensor(x_block)), \
@@ -93,7 +92,7 @@ def seq2seq_pad_concat_convert(xy_batch, device, eos_id=1, bos_id=3):
 
     if torch.cuda.is_available():
         x_block, y_in_block, y_out_block = x_block.cuda(), y_in_block.cuda(), y_out_block.cuda()
-        
+
     return x_block, y_in_block, y_out_block
 
 
@@ -282,7 +281,7 @@ def main():
 
         # ---------- One iteration of the training loop ----------
         train_batch = train_iter.next()
-        in_arrays = seq2seq_pad_concat_convert(train_batch, args.gpu)
+        in_arrays = seq2seq_pad_concat_convert(train_batch, -1)
         # model.set_dropout(args.dropout)
         loss = model(*in_arrays)
 
@@ -298,14 +297,14 @@ def main():
                                                                                   time() - time_s))
 
         if num_steps % (iter_per_epoch // 2) == 0:
-            CalculateBleu(model, test_data, 'val/main/bleu', device=args.gpu, batch=args.batchsize // 4)()
+            CalculateBleu(model, test_data, 'val/main/bleu', device=-1, batch=args.batchsize // 4)()
 
         # Check the validation accuracy of prediction after every epoch
         if train_iter.is_new_epoch:  # If this iteration is the final iteration of the current epoch
             test_losses = []
             while True:
                 test_batch = test_iter.next()
-                in_arrays = seq2seq_pad_concat_convert(test_batch, args.gpu)
+                in_arrays = seq2seq_pad_concat_convert(test_batch, -1)
 
                 # Forward the test data
                 model.set_dropout(0.0)
