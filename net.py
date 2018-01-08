@@ -59,7 +59,7 @@ class LinearSent(nn.Module):
     def __init__(self, input_dim, output_dim, bias=True):
         super(LinearSent, self).__init__()
         self.L = nn.Linear(input_dim, output_dim, bias=bias)
-        self.L.weight.data.uniform_(np.sqrt(3. / input_dim))
+        self.L.weight.data.uniform_(-3. / input_dim, 3. / input_dim)
         if bias:
             self.L.bias.data.fill_(0.)
         self.output_dim = output_dim
@@ -67,10 +67,10 @@ class LinearSent(nn.Module):
     def forward(self, input_expr):
         batch_size, _, seq_len = input_expr.shape
 
-        output = seq_func(self.L, input_expr)
-        # output = self.L.weight.matmul(input_expr)
-        # if self.L.bias is not None:
-        #    output += self.L.bias.unsqueeze(-1)
+        # output = seq_func(self.L, input_expr)
+        output = self.L.weight.matmul(input_expr)
+        if self.L.bias is not None:
+            output += self.L.bias.unsqueeze(-1)
         return output
 
 
