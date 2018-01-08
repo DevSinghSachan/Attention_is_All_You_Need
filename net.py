@@ -134,7 +134,7 @@ class MultiHeadAttention(torch.nn.Module):
         #     temp_var = Variable(torch.zeros(batch_A.shape))
 
         batch_A = torch.where((batch_A != batch_A).cpu(), Variable(torch.zeros(batch_A.shape)), batch_A.cpu())
-        batch_A = batch_A.gpu()
+        batch_A = batch_A.cuda()
         assert (batch_A.shape == (batch * h, n_querys, n_keys))
 
         # Calculate Weighted Sum
