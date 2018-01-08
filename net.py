@@ -308,6 +308,8 @@ class Transformer(torch.nn.Module):
         history_mask = np.broadcast_to(history_mask, (batch, length, length))
         history_mask = history_mask.astype(np.int32)
         history_mask = Variable(torch.ByteTensor(history_mask))
+        if torch.cuda.is_available():
+            history_mask = history_mask.cuda()
         return history_mask
 
     def output(self, h):
