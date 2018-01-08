@@ -32,7 +32,8 @@ def seq_func(func, x, reconstruct_shape=True):
     if not reconstruct_shape:
         return e
     out_units = e.shape[1]
-    e = F.transpose(e.reshape((batch, length, out_units)), (0, 2, 1))
+
+    e = torch.transpose(e.view((batch, length, out_units)), 1, 2).contiguous()
     assert (e.shape == (batch, out_units, length))
     return e
 
@@ -58,17 +59,18 @@ class LinearSent(nn.Module):
     def __init__(self, input_dim, output_dim, bias=True):
         super(LinearSent, self).__init__()
         self.L = nn.Linear(input_dim, output_dim, bias=bias)
+        self.L.weight.data.uniform_(np.sqrt(3. / input_dim))
+        if bias:
+            self.L.bias.data.fill_(0.)
         self.output_dim = output_dim
 
     def forward(self, input_expr):
         batch_size, _, seq_len = input_expr.shape
 
-        output = self.L.weight.matmul(input_expr)
-        if self.L.bias is not None:
-            output += self.L.bias.unsqueeze(-1)
-
-        # if seq_len == 1: # This is helpful when sequence length is 1, especially during decoding
-        #    output = ReverseTimeDistributed()(output, seq_len, batch_size)
+        output = seq_func(self.L, input_expr)
+        # output = self.L.weight.matmul(input_expr)
+        # if self.L.bias is not None:
+        #    output += self.L.bias.unsqueeze(-1)
         return output
 
 
@@ -246,6 +248,8 @@ class Decoder(torch.nn.Module):
         return e
 
 
+
+
 class Transformer(torch.nn.Module):
     def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, h=8, dropout=0.1, max_length=500,
                  use_label_smoothing=False, embed_position=False):
@@ -339,9 +343,6 @@ class Transformer(torch.nn.Module):
         # Make target
         concat_t_block = t_block.view(rebatch)
         ignore_mask = (concat_t_block >= 1)
-        n_token = torch.sum(ignore_mask.double())
-        normalizer = n_token  # n_token or batch or 1
-
         loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
 
         # accuracy = F.accuracy(concat_logit_block, concat_t_block, ignore_label=0)
