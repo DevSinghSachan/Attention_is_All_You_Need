@@ -293,11 +293,10 @@ def main():
         optimizer.step()
 
         if num_steps % 200 == 0:
-            print("{:.03f}/{:02d} \t {}\t {:.04f}\t {:.05f}\t {:.01f} sec".format(train_iter.epoch_detail,
+            print("{:.03f}/{:02d} \t {}\t {:.04f}\t {:.01f} sec".format(train_iter.epoch_detail,
                                                                                   train_iter.epoch + 1,
                                                                                   num_steps,
-                                                                                  loss.data,
-                                                                                  optimizer,
+                                                                                  loss.data.cpu().numpy(),
                                                                                   time() - time_s))
 
         if num_steps % (iter_per_epoch // 2) == 0:
