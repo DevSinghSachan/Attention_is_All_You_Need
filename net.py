@@ -340,16 +340,7 @@ class Transformer(torch.nn.Module):
         n_token = torch.sum(ignore_mask.double())
         normalizer = n_token  # n_token or batch or 1
 
-        if not self.use_label_smoothing:
-            loss = F.cross_entropy(concat_logit_block, concat_t_block)
-        else:
-            log_prob = F.log_softmax(concat_logit_block)
-            broad_ignore_mask = self.xp.broadcast_to(
-                ignore_mask[:, None],
-                concat_logit_block.shape)
-            pre_loss = ignore_mask * \
-                       log_prob[self.xp.arange(rebatch), concat_t_block]
-            loss = - F.sum(pre_loss) / normalizer
+        loss = F.cross_entropy(concat_logit_block, concat_t_block)
 
         # accuracy = F.accuracy(concat_logit_block, concat_t_block, ignore_label=0)
         # perp = self.xp.exp(loss.data * normalizer / n_token)
@@ -358,12 +349,6 @@ class Transformer(torch.nn.Module):
         # reporter.report({'loss': loss.data * normalizer / n_token,
         #                  'acc': accuracy.data,
         #                  'perp': perp}, self)
-
-        if self.use_label_smoothing:
-            label_smoothing = broad_ignore_mask * \
-                              - 1. / self.n_target_vocab * log_prob
-            label_smoothing = F.sum(label_smoothing) / normalizer
-            loss = 0.9 * loss + 0.1 * label_smoothing
 
         print(loss)
         return loss
