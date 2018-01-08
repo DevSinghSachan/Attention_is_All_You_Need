@@ -353,7 +353,7 @@ class Transformer(torch.nn.Module):
         #                  'acc': accuracy.data,
         #                  'perp': perp}, self)
 
-        print(loss)
+        #print(loss)
         return loss
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False):
