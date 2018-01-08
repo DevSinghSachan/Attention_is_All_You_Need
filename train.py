@@ -26,6 +26,10 @@ import net
 from subfuncs import VaswaniRule
 
 
+if torch.cuda.is_available():
+    torch.cuda.set_device(0)
+
+
 def postprocess(file_, file2_, vocab, hypotheses):
     # Save the Hypothesis to output file
     with io.open(file_, 'w') as fp:
