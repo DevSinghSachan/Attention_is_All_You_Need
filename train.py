@@ -296,7 +296,7 @@ def main():
             print("{:.03f}/{:02d} \t {}\t {:.04f}\t {:.05f}\t {:.01f} sec".format(train_iter.epoch_detail,
                                                                                   train_iter.epoch + 1,
                                                                                   num_steps,
-                                                                                  loss.value(),
+                                                                                  loss.data,
                                                                                   optimizer.optimizer.learning_rate,
                                                                                   time() - time_s))
 
