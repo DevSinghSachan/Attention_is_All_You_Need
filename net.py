@@ -134,7 +134,8 @@ class MultiHeadAttention(torch.nn.Module):
         #     temp_var = Variable(torch.zeros(batch_A.shape))
 
         batch_A = torch.where((batch_A != batch_A).cpu(), Variable(torch.zeros(batch_A.shape)), batch_A.cpu())
-        batch_A = batch_A.cuda()
+        if torch.cuda.is_available():
+            batch_A = batch_A.cuda()
         assert (batch_A.shape == (batch * h, n_querys, n_keys))
 
         # Calculate Weighted Sum
@@ -260,6 +261,7 @@ class Transformer(torch.nn.Module):
         self.n_layers = n_layers
         self.n_units = n_units
         self.n_target_vocab = n_target_vocab
+        self.affine = nn.Linear(n_units, n_target_vocab, bias=False)
         self.dropout = dropout
         self.use_label_smoothing = use_label_smoothing
         self.initialize_position_encoding(max_length, n_units)
@@ -331,16 +333,16 @@ class Transformer(torch.nn.Module):
     def output_and_loss(self, h_block, t_block):
         batch, units, length = h_block.shape
         # Output (all together at once for efficiency)
-        concat_logit_block = seq_func(self.output, h_block, reconstruct_shape=False)
+        concat_logit_block = seq_func(self.affine, h_block, reconstruct_shape=False)
         rebatch, _ = concat_logit_block.shape
 
         # Make target
-        concat_t_block = t_block.view((rebatch))
+        concat_t_block = t_block.view(rebatch)
         ignore_mask = (concat_t_block >= 1)
         n_token = torch.sum(ignore_mask.double())
         normalizer = n_token  # n_token or batch or 1
 
-        loss = F.cross_entropy(concat_logit_block, concat_t_block)
+        loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
 
         # accuracy = F.accuracy(concat_logit_block, concat_t_block, ignore_label=0)
         # perp = self.xp.exp(loss.data * normalizer / n_token)
