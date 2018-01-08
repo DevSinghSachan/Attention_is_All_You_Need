@@ -297,7 +297,7 @@ def main():
                                                                                   train_iter.epoch + 1,
                                                                                   num_steps,
                                                                                   loss.data,
-                                                                                  optimizer.optimizer.learning_rate,
+                                                                                  optimizer,
                                                                                   time() - time_s))
 
         if num_steps % (iter_per_epoch // 2) == 0:
