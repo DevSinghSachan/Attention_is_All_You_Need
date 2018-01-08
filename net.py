@@ -121,7 +121,12 @@ class MultiHeadAttention(torch.nn.Module):
         batch_A = F.softmax(batch_A, dim=2)
 
         # Replaces 'NaN' with zeros and other values with the original ones
-        batch_A = torch.where(batch_A != batch_A, Variable(torch.zeros(batch_A.shape)), batch_A)
+        if torch.cuda.is_available():
+            temp_var =  Variable(torch.zeros(batch_A.shape)).cuda()
+        else:
+            temp_var = Variable(torch.zeros(batch_A.shape))
+
+        batch_A = torch.where(batch_A != batch_A, temp_var, batch_A)
         assert (batch_A.shape == (batch * h, n_querys, n_keys))
 
         # Calculate Weighted Sum
