@@ -284,6 +284,9 @@ def main():
         in_arrays = seq2seq_pad_concat_convert(train_batch, -1)
         loss = model(*in_arrays)
 
+        norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
+        print(norm)
+        
         loss.backward()
         optimizer.step()
 
@@ -309,7 +312,7 @@ def main():
                 loss_test = model(*in_arrays)
 
                 # Calculate the accuracy
-                test_losses.append(loss_test.value())
+                test_losses.append(loss_test.data().cpu().numpy())
 
                 if test_iter.is_new_epoch:
                     test_iter.epoch = 0
