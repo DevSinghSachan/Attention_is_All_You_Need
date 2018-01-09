@@ -375,32 +375,33 @@ class Transformer(torch.nn.Module):
             return self.translate_beam(x_block, max_length, beam)
 
         # TODO: efficient inference by re-using result
-        with chainer.no_backprop_mode():
-            with chainer.using_config('train', False):
-                x_block = source_pad_concat_convert(
-                    x_block, device=None)
-                batch, x_length = x_block.shape
-                # y_block = self.xp.zeros((batch, 1), dtype=x_block.dtype)
-                y_block = self.xp.full(
-                    (batch, 1), 2, dtype=x_block.dtype)  # bos
-                eos_flags = self.xp.zeros((batch,), dtype=x_block.dtype)
-                result = []
-                for i in range(max_length):
-                    log_prob_tail = self(x_block, y_block, y_block,
-                                         get_prediction=True)
-                    ys = self.xp.argmax(log_prob_tail.data, axis=1).astype('i')
-                    result.append(ys)
-                    y_block = F.concat([y_block, ys[:, None]], axis=1).data
-                    eos_flags += (ys == 0)
-                    if self.xp.all(eos_flags):
-                        break
+        x_block = source_pad_concat_convert(x_block, device=None)
+        batch, x_length = x_block.shape
+        y_block = np.full((batch, 1), 3, dtype=x_block.dtype)  # bos
+        eos_flags = np.zeros((batch,), dtype=x_block.dtype)
 
-        result = cuda.to_cpu(self.xp.stack(result).T)
+        x_block, y_block = Variable(torch.LongTensor(x_block)), Variable(torch.LongTensor(y_block))
+        if torch.cuda.is_available():
+            x_block, y_block = x_block.cuda(), y_block.cuda()
 
-        # Remove EOS taggs
+        result = []
+        for i in range(max_length):
+            log_prob_tail = self(x_block, y_block, y_block, get_prediction=True)
+            # ys = np.argmax(log_prob_tail.data.cpu().numpy(), axis=1).astype('i')
+            _, ys = torch.max(log_prob_tail, dim=1)
+            y_block = torch.cat([y_block.detach(), ys[:, None]], dim=1)
+            ys = ys.data.cpu().numpy()
+            result.append(ys)
+            eos_flags += (ys == 1)
+            if np.all(eos_flags):
+                break
+
+        result = np.stack(result).T
+
+        # Remove EOS tags
         outs = []
         for y in result:
-            inds = np.argwhere(y == 0)
+            inds = np.argwhere(y==1)
             if len(inds) > 0:
                 y = y[:inds[0, 0]]
             if len(y) == 0:

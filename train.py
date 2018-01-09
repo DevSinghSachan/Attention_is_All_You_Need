@@ -103,58 +103,42 @@ def seq2seq_pad_concat_convert(xy_batch, device, eos_id=1, bos_id=3):
 
 def source_pad_concat_convert(x_seqs, device, eos_id=1, bos_id=3):
     x_block = convert.concat_examples(x_seqs, device, padding=0)
-    xp = cuda.get_array_module(x_block)
 
     # add eos
-    with xp.cuda.Device(device):
-        x_block = xp.pad(x_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
+    x_block = np.pad(x_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
+    for i_batch, seq in enumerate(x_seqs):
+        x_block[i_batch, len(seq)] = eos_id
 
-        for i_batch, seq in enumerate(x_seqs):
-            x_block[i_batch, len(seq)] = eos_id
-
-        x_block = xp.pad(x_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
-
-        return x_block
+    x_block = np.pad(x_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
+    return x_block
 
 
-class CalculateBleu(chainer.training.Extension):
-    trigger = 1, 'epoch'
-    priority = chainer.training.PRIORITY_WRITER
-
-    def __init__(self, model, test_data, key, dev_hyp_file, target_vocab, dev_ref_file, batch=50, device=-1,
-                 max_length=50):
+class CalculateBleu(object):
+    def __init__(self, model, test_data, key, batch=50, device=-1, max_length=50):
         self.model = model
         self.test_data = test_data
         self.key = key
-        self.dev_hyp_file = dev_hyp_file
-        self.dev_ref_file = dev_ref_file
-        self.target_vocab = target_vocab
         self.batch = batch
         self.device = device
         self.max_length = max_length
 
-    def __call__(self, trainer):
+    def __call__(self):
         print('## Calculate BLEU')
-        with chainer.no_backprop_mode():
-            with chainer.using_config('train', False):
-                references = []
-                hypotheses = []
-                for i in range(0, len(self.test_data), self.batch):
-                    sources, targets = zip(*self.test_data[i:i + self.batch])
-                    references.extend([[t.tolist()] for t in targets])
+        self.model.eval()
+        references = []
+        hypotheses = []
+        for i in range(0, len(self.test_data), self.batch):
+            sources, targets = zip(*self.test_data[i:i + self.batch])
+            references.extend([[t.tolist()] for t in targets])
 
-                    sources = [chainer.dataset.to_device(self.device, x) for x in sources]
+            sources = [chainer.dataset.to_device(self.device, x) for x in sources]
 
-                    ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
-                    # greedy generation for efficiency
-                    hypotheses.extend(ys)
+            ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
+            # greedy generation for efficiency
+            hypotheses.extend(ys)
 
-        bleu = bleu_score.corpus_bleu(references, hypotheses,
-                                      smoothing_function=bleu_score.SmoothingFunction().method0) * 100
-
+        bleu = bleu_score.corpus_bleu(references, hypotheses, smoothing_function=bleu_score.SmoothingFunction().method0)
         print('BLEU:', bleu)
-        reporter.report({self.key: bleu})
-        postprocess(self.dev_hyp_file, self.dev_ref_file, self.target_vocab, hypotheses)
 
 
 def main():
@@ -221,9 +205,11 @@ def main():
     print("epoch \t steps \t train_loss \t lr \t time")
     prog = general_utils.Progbar(target=iter_per_epoch)
     num_steps = 0
-    time_s = time()
+
+    CalculateBleu(model, test_data, 'val/main/bleu', device=config.gpu, batch=config.batchsize // 4)()
 
     while train_iter.epoch < config.epoch:
+        time_s = time()
         model.train()
         optimizer.zero_grad()
         num_steps += 1
@@ -267,9 +253,9 @@ def main():
                     test_iter._pushed_position = None
                     break
 
-            print('val_loss:{:.04f}'.format(np.mean(test_losses)))
+            print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
 
-            # CalculateBleu(model, test_data, 'val/main/bleu', device=args.gpu, batch=args.batchsize)()
+            CalculateBleu(model, test_data, 'val/main/bleu', device=config.gpu, batch=config.batchsize//4)()
             ############################################################
 
     # If you want to change a logging interval, change this number
