@@ -5,11 +5,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch.autograd import Variable
-
 from train import source_pad_concat_convert
-
-
-# linear_init = chainer.initializers.LeCunUniform()
 
 
 def sentence_block_embed(embed, x):
@@ -99,14 +95,12 @@ class MultiHeadAttention(torch.nn.Module):
 
     def forward(self, x, z=None, mask=None):
         h = self.h
+        Q = self.W_Q(x)
+
         if z is None:
-            Q = self.W_Q(x)
-            K = self.W_K(x)
-            V = self.W_V(x)
+            K, V = self.W_K(x), self.W_V(x)
         else:
-            Q = self.W_Q(x)
-            K = self.W_K(z)
-            V = self.W_V(z)
+            K, V = self.W_K(z), self.W_V(z)
 
         batch, n_units, n_querys = Q.shape
         _, _, n_keys = K.shape
@@ -130,12 +124,11 @@ class MultiHeadAttention(torch.nn.Module):
         batch_A = F.softmax(batch_A, dim=2)
 
         # Replaces 'NaN' with zeros and other values with the original ones
-        # if torch.cuda.is_available():
-        #     temp_var =  Variable(torch.zeros(batch_A.shape)).cuda()
-        # else:
-        #     temp_var = Variable(torch.zeros(batch_A.shape))
+        # Currently torch.where is only supported in CPU
+        # batch_A = torch.where((batch_A != batch_A).cpu(), Variable(torch.zeros(batch_A.shape)), batch_A.cpu())
 
-        batch_A = torch.where((batch_A != batch_A).cpu(), Variable(torch.zeros(batch_A.shape)), batch_A.cpu())
+        batch_A = batch_A.masked_fill(batch_A != batch_A, 0.)
+
         if torch.cuda.is_available():
             batch_A = batch_A.cuda()
         assert (batch_A.shape == (batch * h, n_querys, n_keys))

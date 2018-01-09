@@ -1,7 +1,6 @@
 # encoding: utf-8
 from __future__ import unicode_literals, print_function
 
-import argparse
 import json
 import os.path
 from nltk.translate import bleu_score
@@ -13,38 +12,17 @@ from time import time
 
 import torch
 from torch.autograd import Variable
-
 import chainer
-from chainer import cuda
 from chainer.dataset import convert
-from chainer import reporter
-from chainer import training
-from chainer.training import extensions
 
 import preprocess
 import net
-from subfuncs import VaswaniRule, TransformerAdamTrainer
+from subfuncs import TransformerAdamTrainer
 import general_utils
 from util import get_args
 
 if torch.cuda.is_available():
     torch.cuda.set_device(0)
-
-
-def postprocess(file_, file2_, vocab, hypotheses):
-    # Save the Hypothesis to output file
-    with io.open(file_, 'w') as fp:
-        for sent in hypotheses:
-            words = [vocab[y] for y in sent]
-            fp.write(' '.join(words) + '\n')
-
-    # Detokenize the Output
-    command = 'detokenize < {} > {}.detok'.format(file_, file_)
-    subprocess.check_call(command, shell=True)
-
-    # Compute the BLEU Score (uselower case)
-    command = 'perl multi-bleu.perl {} < {}.detok'.format(file2_, file_)
-    subprocess.check_call(command, shell=True)
 
 
 def seq2seq_pad_concat_convert(xy_batch, device, eos_id=1, bos_id=3):
@@ -206,8 +184,6 @@ def main():
     prog = general_utils.Progbar(target=iter_per_epoch)
     num_steps = 0
 
-    CalculateBleu(model, test_data, 'val/main/bleu', batch=config.batchsize // 4)()
-
     while train_iter.epoch < config.epoch:
         time_s = time()
         model.train()
@@ -227,9 +203,6 @@ def main():
             dummy_norm = 50.0
             norm = torch.nn.utils.clip_grad_norm(model.parameters(), dummy_norm)
             prog.update(num_steps, values=[("train loss", loss.data.cpu().numpy()[0]),], exact=[("norm", norm)])
-
-        # if num_steps % (iter_per_epoch // 2) == 0:
-        #     CalculateBleu(model, test_data, 'val/main/bleu', device=-1, batch=args.batchsize // 4)()
 
         # Check the validation accuracy of prediction after every epoch
         if train_iter.is_new_epoch:  # If this iteration is the final iteration of the current epoch
@@ -254,110 +227,7 @@ def main():
                     break
 
             print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
-
             CalculateBleu(model, test_data, 'val/main/bleu', batch=config.batchsize//4)()
-            ############################################################
-
-    # If you want to change a logging interval, change this number
-    log_trigger = (min(200, iter_per_epoch // 2), 'iteration')
-
-    def floor_step(trigger):
-        floored = trigger[0] - trigger[0] % log_trigger[0]
-        if floored <= 0:
-            floored = trigger[0]
-        return (floored, trigger[1])
-
-    # Validation every half epoch
-    eval_trigger = floor_step((iter_per_epoch // 2, 'iteration'))
-    record_trigger = training.triggers.MinValueTrigger(
-        'val/main/perp', eval_trigger)
-
-    evaluator = extensions.Evaluator(test_iter, model, converter=seq2seq_pad_concat_convert, device=config.gpu0)
-    evaluator.default_name = 'val'
-    trainer.extend(evaluator, trigger=eval_trigger)
-
-    # Use Vaswan's magical rule of learning rate(Eq. 3 in the paper)
-    # But, the hyperparamter in the paper seems to work well
-    # only with a large batchsize.
-    # If you run on popular setup (e.g. size=48 on 1 GPU),
-    # you may have to change the hyperparamter.
-    # I scaled learning rate by 0.5 consistently.
-    # ("scale" is always multiplied to learning rate.)
-
-    # If you use a shallow layer network (<=2),
-    # you may not have to change it from the paper setting.
-    if not config.use_fixed_lr:
-        trainer.extend(
-            VaswaniRule('alpha', d=config.unit, warmup_steps=4000, scale=1.),
-            # VaswaniRule('alpha', d=args.unit, warmup_steps=32000, scale=1.),
-            # VaswaniRule('alpha', d=args.unit, warmup_steps=4000, scale=0.5),
-            # VaswaniRule('alpha', d=args.unit, warmup_steps=16000, scale=1.),
-            # VaswaniRule('alpha', d=args.unit, warmup_steps=64000, scale=1.),
-            trigger=(1, 'iteration'))
-
-    observe_alpha = extensions.observe_value('alpha', lambda trainer: trainer.updater.get_optimizer('main').alpha)
-    trainer.extend(observe_alpha, trigger=(1, 'iteration'))
-
-    # CalculateBleu(model, test_data, 'val/main/bleu', hyp_dev_path, target_vocab,
-    #               device=args.gpu0, batch=args.batchsize // 4)(trainer)
-
-    # Only if a model gets best validation score,
-    # save (overwrite) the model
-    trainer.extend(extensions.snapshot_object(model, 'best_model.npz'), trigger=record_trigger)
-
-    def translate_one(source, target):
-        words = preprocess.split_sentence(source)
-        print('# source : ' + ' '.join(words))
-        x = model.xp.array(
-            [source_ids.get(w, 1) for w in words], 'i')
-        # ys = model.translate([x], beam=5)[0]
-        ys = model.translate([x], beam=1)[0]
-        words = [target_words[y] for y in ys]
-        print('#  result : ' + ' '.join(words))
-        print('#  expect : ' + target)
-
-    @chainer.training.make_extension(trigger=(200, 'iteration'))
-    def translate(trainer):
-        translate_one(
-            'Who are we ?',
-            'Qui sommes-nous?')
-        translate_one(
-            'And it often costs over a hundred dollars ' +
-            'to obtain the required identity card .',
-            'Or, il en coûte souvent plus de cent dollars ' +
-            'pour obtenir la carte d\'identité requise.')
-
-        source, target = test_data[numpy.random.choice(len(test_data))]
-        source = ' '.join([source_words[i] for i in source])
-        target = ' '.join([target_words[i] for i in target])
-        translate_one(source, target)
-
-    # Gereneration Test
-    # trainer.extend(
-    #     translate,
-    #     trigger=(min(200, iter_per_epoch), 'iteration'))
-
-    if not config.no_bleu:
-        trainer.extend(
-            CalculateBleu(model, test_data, 'val/main/bleu', hyp_dev_path, target_vocab, ref_dev_path,
-                          device=config.gpu0, batch=config.batchsize // 4),
-            trigger=floor_step((iter_per_epoch, 'iteration')))
-
-    # Log
-    trainer.extend(extensions.LogReport(trigger=log_trigger),
-                   trigger=log_trigger)
-
-    trainer.extend(extensions.PrintReport(['epoch', 'iteration',
-                                           'main/loss', 'val/main/loss',
-                                           'main/perp', 'val/main/perp',
-                                           'main/acc', 'val/main/acc',
-                                           'val/main/bleu',
-                                           'alpha',
-                                           'elapsed_time']),
-                   trigger=log_trigger)
-
-    print('start training')
-    trainer.run()
 
 
 if __name__ == '__main__':
