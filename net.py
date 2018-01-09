@@ -99,8 +99,10 @@ class MultiHeadAttention(torch.nn.Module):
 
         if z is None:
             K, V = self.W_K(x), self.W_V(x)
+            del x
         else:
             K, V = self.W_K(z), self.W_V(z)
+            del x, z
 
         batch, n_units, n_querys = Q.shape
         _, _, n_keys = K.shape
