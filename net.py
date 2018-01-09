@@ -5,11 +5,41 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch.autograd import Variable
-from train import source_pad_concat_convert
 import torch.backends.cudnn as cudnn
+from train import source_pad_concat_convert
+
 cudnn.benchmark = True
 
+
+class LayerNorm(nn.Module):
+    """Layer normalization module"""
+    def __init__(self, d_hid, eps=1e-3):
+        super(LayerNorm, self).__init__()
+        self.eps = eps
+        self.a_2 = nn.Parameter(torch.ones(d_hid), requires_grad=True)
+        self.b_2 = nn.Parameter(torch.zeros(d_hid), requires_grad=True)
+
+    def forward(self, z):
+        if z.size(1) == 1:
+            return z
+        mu = torch.mean(z, dim=1)
+        sigma = torch.std(z, dim=1)
+        # HACK. PyTorch is changing behavior
+        if mu.dim() == 1:
+            mu = mu.unsqueeze(1)
+            sigma = sigma.unsqueeze(1)
+        ln_out = (z - mu.expand_as(z)) / (sigma.expand_as(z) + self.eps)
+        ln_out = ln_out.mul(self.a_2.expand_as(ln_out)) + self.b_2.expand_as(ln_out)
+        return ln_out
+
+
 def sentence_block_embed(embed, x):
+    """Computes sentence-level embedding representation from word-ids.
+
+    :param embed: nn.Embedding() Module
+    :param x: Tensor of batched word-ids
+    :return: Tensor of shape (batchsize, dimension, sentence_length)
+    """
     batch, length = x.shape
     _, units = embed.weight.size()
     e = embed(x).transpose(1, 2).contiguous()
@@ -18,65 +48,55 @@ def sentence_block_embed(embed, x):
 
 
 def seq_func(func, x, reconstruct_shape=True):
-    """ Change implicitly function's target to ndim=3
-    Apply a given function for array of ndim 3,
-    shape (batchsize, dimension, sentence_length),
-    instead for array of ndim 2.
+    """Change implicitly function's input x from ndim=3 to ndim=2
+
+    :param func: function to be applied to input x
+    :param x: Tensor of batched sentence level word features
+    :param reconstruct_shape: boolean, if the output needs to be of the same shape as input x
+    :return: Tensor of shape (batchsize, dimension, sentence_length) or (batchsize x sentence_length, dimension)
     """
     batch, units, length = x.shape
     e = torch.transpose(x, 1, 2).contiguous().view(batch * length, units)
     e = func(e)
     if not reconstruct_shape:
         return e
-    out_units = e.shape[1]
-
-    e = torch.transpose(e.view((batch, length, out_units)), 1, 2).contiguous()
-    assert (e.shape == (batch, out_units, length))
+    e = torch.transpose(e.view((batch, length, units)), 1, 2).contiguous()
+    assert (e.shape == (batch, units, length))
     return e
 
 
-class LayerNormalizationSentence(torch.nn.Module):
-    """ Position-wise Linear Layer for Sentence Block
-
-    Position-wise layer-normalization layer for array of shape
-    (batchsize, dimension, sentence_length).
-
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(LayerNormalizationSentence, self).__init__()
+class LayerNormSent(LayerNorm):
+    """Position-wise layer-normalization layer for array of shape (batchsize, dimension, sentence_length)."""
+    def __init__(self, n_units, eps=1e-6):
+        super(LayerNormSent, self).__init__(n_units, eps=eps)
 
     def forward(self, x):
-        # y = seq_func(super(LayerNormalizationSentence, self).forward, x)
-        # return y
-        return x
+        y = seq_func(super(LayerNormSent, self).forward, x)
+        return y
+        # return x
 
 
 class LinearSent(nn.Module):
+    """Position-wise Linear Layer for Sentence Block"""
     def __init__(self, input_dim, output_dim, bias=True):
         super(LinearSent, self).__init__()
         self.L = nn.Linear(input_dim, output_dim, bias=bias)
-        self.L.weight.data.uniform_(-3. / input_dim, 3. / input_dim)
+        self.L.weight.data.uniform_(-3./input_dim, 3./input_dim)
         if bias:
             self.L.bias.data.fill_(0.)
         self.output_dim = output_dim
 
     def forward(self, input_expr):
         batch_size, _, seq_len = input_expr.shape
-
-        # output = seq_func(self.L, input_expr)
         output = self.L.weight.matmul(input_expr)
         if self.L.bias is not None:
             output += self.L.bias.unsqueeze(-1)
         return output
 
 
-class MultiHeadAttention(torch.nn.Module):
-    """ Multi Head Attention Layer for Sentence Blocks
-    For batch computation efficiency, dot product to calculate query-key
-    scores is performed all heads together.
-    """
-
+class MultiHeadAttention(nn.Module):
+    """ Multi Head Attention Layer for Sentence Blocks. For batch computation efficiency, dot product to calculate
+    query-key. scores is performed all heads together. """
     def __init__(self, n_units, h=8, dropout=0.1):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
@@ -90,7 +110,6 @@ class MultiHeadAttention(torch.nn.Module):
     def forward(self, x, z=None, mask=None):
         h = self.h
         Q = self.W_Q(x)
-
         if z is None:
             K, V = self.W_K(x), self.W_V(x)
         else:
@@ -118,11 +137,6 @@ class MultiHeadAttention(torch.nn.Module):
         batch_A = F.softmax(batch_A, dim=2)
 
         # Replaces 'NaN' with zeros and other values with the original ones
-        # Currently torch.where is only supported in CPU
-        # batch_A = torch.where((batch_A != batch_A).cpu(), Variable(torch.zeros(batch_A.shape)), batch_A.cpu())
-        # if torch.cuda.is_available():
-        #     batch_A = batch_A.cuda()
-
         batch_A = batch_A.masked_fill(batch_A != batch_A, 0.)
         assert (batch_A.shape == (batch * h, n_querys, n_keys))
 
@@ -138,7 +152,7 @@ class MultiHeadAttention(torch.nn.Module):
         return C
 
 
-class FeedForwardLayer(torch.nn.Module):
+class FeedForwardLayer(nn.Module):
     def __init__(self, n_units):
         super(FeedForwardLayer, self).__init__()
         n_inner_units = n_units * 4
@@ -153,16 +167,16 @@ class FeedForwardLayer(torch.nn.Module):
         return e
 
 
-class EncoderLayer(torch.nn.Module):
+class EncoderLayer(nn.Module):
     def __init__(self, n_units, h=8, dropout=0.1):
         super(EncoderLayer, self).__init__()
         self.self_attention = MultiHeadAttention(n_units, h)
         self.dropout1 = nn.Dropout(dropout)
-        self.ln_1 = LayerNormalizationSentence(n_units, eps=1e-6)
+        self.ln_1 = LayerNormSent(n_units, eps=1e-6)
 
         self.feed_forward = FeedForwardLayer(n_units)
         self.dropout2 = nn.Dropout(dropout)
-        self.ln_2 = LayerNormalizationSentence(n_units, eps=1e-6)
+        self.ln_2 = LayerNormSent(n_units, eps=1e-6)
 
     def forward(self, e, xx_mask):
         sub = self.self_attention(e, mask=xx_mask)
@@ -175,20 +189,20 @@ class EncoderLayer(torch.nn.Module):
         return e
 
 
-class DecoderLayer(torch.nn.Module):
+class DecoderLayer(nn.Module):
     def __init__(self, n_units, h=8, dropout=0.1):
         super(DecoderLayer, self).__init__()
         self.self_attention = MultiHeadAttention(n_units, h)
         self.dropout1 = nn.Dropout(dropout)
-        self.ln_1 = LayerNormalizationSentence(n_units, eps=1e-6)
+        self.ln_1 = LayerNormSent(n_units, eps=1e-6)
 
         self.source_attention = MultiHeadAttention(n_units, h)
         self.dropout2 = nn.Dropout(dropout)
-        self.ln_2 = LayerNormalizationSentence(n_units, eps=1e-6)
+        self.ln_2 = LayerNormSent(n_units, eps=1e-6)
 
         self.feed_forward = FeedForwardLayer(n_units)
         self.dropout3 = nn.Dropout(dropout)
-        self.ln_3 = LayerNormalizationSentence(n_units, eps=1e-6)
+        self.ln_3 = LayerNormSent(n_units, eps=1e-6)
 
     def forward(self, e, s, xy_mask, yy_mask):
         sub = self.self_attention(e, mask=yy_mask)
@@ -205,7 +219,7 @@ class DecoderLayer(torch.nn.Module):
         return e
 
 
-class Encoder(torch.nn.Module):
+class Encoder(nn.Module):
     def __init__(self, n_layers, n_units, h=8, dropout=0.1):
         super(Encoder, self).__init__()
         self.layers = torch.nn.ModuleList()
@@ -219,7 +233,7 @@ class Encoder(torch.nn.Module):
         return e
 
 
-class Decoder(torch.nn.Module):
+class Decoder(nn.Module):
     def __init__(self, n_layers, n_units, h=8, dropout=0.1):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
@@ -233,7 +247,7 @@ class Decoder(torch.nn.Module):
         return e
 
 
-class Transformer(torch.nn.Module):
+class Transformer(nn.Module):
     def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, h=8, dropout=0.1, max_length=500,
                  use_label_smoothing=False, embed_position=False):
         super(Transformer, self).__init__()
