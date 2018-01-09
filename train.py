@@ -137,7 +137,7 @@ class CalculateBleu(object):
             # greedy generation for efficiency
             hypotheses.extend(ys)
 
-        bleu = bleu_score.corpus_bleu(references, hypotheses, smoothing_function=bleu_score.SmoothingFunction().method0)
+        bleu = bleu_score.corpus_bleu(references, hypotheses, smoothing_function=bleu_score.SmoothingFunction().method1)
         print('BLEU:', bleu)
 
 
