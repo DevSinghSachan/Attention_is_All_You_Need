@@ -284,11 +284,12 @@ def main():
         in_arrays = seq2seq_pad_concat_convert(train_batch, -1)
         loss = model(*in_arrays)
 
-        norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
-        print(norm)
-        
+
         loss.backward()
         optimizer.step()
+
+        norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
+        print(norm)
 
         if num_steps % 200 == 0:
             print("{:.03f}/{:02d} \t {}\t {:.04f}\t {:.01f} sec".format(train_iter.epoch_detail,
