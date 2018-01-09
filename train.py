@@ -23,7 +23,9 @@ from chainer.training import extensions
 
 import preprocess
 import net
-from subfuncs import VaswaniRule
+from subfuncs import VaswaniRule, TransformerAdamTrainer
+import general_utils
+
 
 if torch.cuda.is_available():
     torch.cuda.set_device(0)
@@ -260,16 +262,16 @@ def main():
         model.cuda(args.gpu)
 
     # Setup Optimizer
-    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
-
-    # optimizer = chainer.optimizers.Adam(alpha=5e-5, beta1=0.9, beta2=0.98, eps=1e-9)
-
+    # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
+    optimizer = TransformerAdamTrainer(model)
     train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
     test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize, repeat=False, shuffle=False)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
     print("epoch \t steps \t train_loss \t lr \t time")
+
+    prog = general_utils.Progbar(target=iter_per_epoch)
 
     num_steps = 0
     time_s = time()
@@ -285,20 +287,23 @@ def main():
         loss = model(*in_arrays)
 
         loss.backward()
-        norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
+        norm = torch.nn.utils.clip_grad_norm(model.parameters(), 50.0)
         optimizer.step()
 
         print(norm)
+        prog.update(num_steps, values=[("train loss", loss),], exact=[("norm", norm)])
 
-        if num_steps % 200 == 0:
-            print("{:.03f}/{:02d} \t {}\t {:.04f}\t {:.01f} sec".format(train_iter.epoch_detail,
-                                                                        train_iter.epoch + 1,
-                                                                        num_steps,
-                                                                        loss.data.cpu().numpy()[0],
-                                                                        time() - time_s))
+        # if num_steps % 200 == 0:
+        #     print("{:.03f}/{:02d} \t {}\t {:.04f}\t {:.01f} sec".format(train_iter.epoch_detail,
+        #                                                                 train_iter.epoch + 1,
+        #                                                                 num_steps,
+        #                                                                 loss.data.cpu().numpy()[0],
+        #                                                                 time() - time_s))
 
         # if num_steps % (iter_per_epoch // 2) == 0:
         #     CalculateBleu(model, test_data, 'val/main/bleu', device=-1, batch=args.batchsize // 4)()
+
+
 
         # Check the validation accuracy of prediction after every epoch
         if train_iter.is_new_epoch:  # If this iteration is the final iteration of the current epoch
