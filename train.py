@@ -25,7 +25,7 @@ import preprocess
 import net
 from subfuncs import VaswaniRule, TransformerAdamTrainer
 import general_utils
-
+from util import get_args
 
 if torch.cuda.is_available():
     torch.cuda.set_device(0)
@@ -158,68 +158,17 @@ class CalculateBleu(chainer.training.Extension):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Implementation of "Attention is All You Need"')
+    config = get_args()
 
-    parser.add_argument('--batchsize', '-b', type=int, default=100,
-                        help='Number of sentences in each mini-batch')
-    parser.add_argument('--epoch', '-e', type=int, default=40,
-                        help='Number of sweeps over the dataset to train')
-    parser.add_argument('--gpu', '-g', type=int, default=-1,
-                        help='GPU ID (negative value indicates CPU)')
-    parser.add_argument('--gpu_ids', nargs='+', type=int, default=[0, 1, 2, 3])
-    parser.add_argument('--unit', '-u', type=int, default=512,
-                        help='Number of units')
-    parser.add_argument('--layer', '-l', type=int, default=1,
-                        help='Number of layers')
-    parser.add_argument('--head', type=int, default=8,
-                        help='Number of heads in attention mechanism')
-    parser.add_argument('--dropout', '-d', type=float, default=0.2,
-                        help='Dropout rate')
-    parser.add_argument('--input', '-i', type=str, default='./data',
-                        help='Input directory')
-    parser.add_argument('--source', '-s', type=str,
-                        default='train.ja',
-                        help='Filename of train data for source language')
-    parser.add_argument('--target', '-t', type=str,
-                        default='train.en',
-                        help='Filename of train data for target language')
-    parser.add_argument('--source-valid', '-svalid', type=str,
-                        default='dev.ja',
-                        help='Filename of validation data for source language')
-    parser.add_argument('--target-valid', '-tvalid', type=str,
-                        default='dev.en',
-                        help='Filename of validation data for target language')
-    parser.add_argument('--target-valid-raw', '-tvalid_raw', type=str,
-                        default='dev.en',
-                        help='Filename of raw validation data for target language')
-    parser.add_argument('--out', '-o', default='result',
-                        help='Directory to output the result')
-    parser.add_argument('--source-vocab', type=int, default=40000,
-                        help='Vocabulary size of source language')
-    parser.add_argument('--target-vocab', type=int, default=40000,
-                        help='Vocabulary size of target language')
-    parser.add_argument('--no-bleu', '-no-bleu', action='store_true',
-                        help='Skip BLEU calculation')
-    parser.add_argument('--use-label-smoothing', action='store_true',
-                        help='Use label smoothing for cross entropy')
-    parser.add_argument('--embed-position', action='store_true',
-                        help='Use position embedding rather than sinusoid')
-    parser.add_argument('--use-fixed-lr', action='store_true',
-                        help='Use fixed learning rate rather than the ' +
-                             'annealing proposed in the paper')
-    parser.add_argument('--hyp_dev', default='hyp_dev.txt')
-    parser.add_argument('--hyp_test', default='hyp_test.txt')
-    args = parser.parse_args()
-
-    print(json.dumps(args.__dict__, indent=4))
+    print(json.dumps(config.__dict__, indent=4))
 
     # Check file
-    source_path = os.path.join(args.input, args.source)
-    source_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(source_path, args.source_vocab)
+    source_path = os.path.join(config.input, config.source)
+    source_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(source_path, config.source_vocab)
     source_data = preprocess.make_dataset(source_path, source_vocab)
 
-    target_path = os.path.join(args.input, args.target)
-    target_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(target_path, args.target_vocab)
+    target_path = os.path.join(config.input, config.target)
+    target_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(target_path, config.target_vocab)
     target_data = preprocess.make_dataset(target_path, target_vocab)
     assert len(source_data) == len(target_data)
 
@@ -230,16 +179,16 @@ def main():
     train_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) < 50 and 0 < len(t) < 50]
     print('Filtered training data size: %d' % len(train_data))
 
-    source_path = os.path.join(args.input, args.source_valid)
+    source_path = os.path.join(config.input, config.source_valid)
     source_data = preprocess.make_dataset(source_path, source_vocab)
-    target_path = os.path.join(args.input, args.target_valid)
+    target_path = os.path.join(config.input, config.target_valid)
     target_data = preprocess.make_dataset(target_path, target_vocab)
     assert len(source_data) == len(target_data)
     test_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
 
-    hyp_dev_path = os.path.join(args.input, args.hyp_dev)
-    hyp_test_path = os.path.join(args.input, args.hyp_test)
-    ref_dev_path = os.path.join(args.input, args.target_valid_raw)
+    hyp_dev_path = os.path.join(config.input, config.hyp_dev)
+    hyp_test_path = os.path.join(config.input, config.hyp_test)
+    ref_dev_path = os.path.join(config.input, config.target_valid_raw)
 
     source_ids = {word: index for index, word in enumerate(source_vocab)}
     target_ids = {word: index for index, word in enumerate(target_vocab)}
@@ -248,33 +197,33 @@ def main():
     source_words = {i: w for w, i in source_ids.items()}
 
     # Define Model
-    model = net.Transformer(args.layer,
+    model = net.Transformer(config.layer,
                             min(len(source_ids), len(source_words)),
                             min(len(target_ids), len(target_words)),
-                            args.unit,
-                            h=args.head,
-                            dropout=args.dropout,
+                            config.unit,
+                            h=config.head,
+                            dropout=config.dropout,
                             max_length=500,
-                            use_label_smoothing=args.use_label_smoothing,
-                            embed_position=args.embed_position)
+                            use_label_smoothing=config.use_label_smoothing,
+                            embed_position=config.embed_position)
 
-    if args.gpu >= 0:
-        model.cuda(args.gpu)
+    if config.gpu >= 0:
+        model.cuda(config.gpu)
 
     # Setup Optimizer
     # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
     optimizer = TransformerAdamTrainer(model)
-    train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
-    test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize, repeat=False, shuffle=False)
+    train_iter = chainer.iterators.SerialIterator(train_data, config.batchsize)
+    test_iter = chainer.iterators.SerialIterator(test_data, config.batchsize, repeat=False, shuffle=False)
 
-    iter_per_epoch = len(train_data) // args.batchsize
+    iter_per_epoch = len(train_data) // config.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
     print("epoch \t steps \t train_loss \t lr \t time")
     prog = general_utils.Progbar(target=iter_per_epoch)
     num_steps = 0
     time_s = time()
 
-    while train_iter.epoch < args.epoch:
+    while train_iter.epoch < config.epoch:
         model.train()
         optimizer.zero_grad()
         num_steps += 1
@@ -285,22 +234,16 @@ def main():
         loss = model(*in_arrays)
 
         loss.backward()
-        norm = torch.nn.utils.clip_grad_norm(model.parameters(), 50.0)
+        # norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
         optimizer.step()
 
-        prog.update(num_steps, values=[("train loss", loss.data.cpu().numpy()[0]),], exact=[("norm", norm)])
-
-        # if num_steps % 200 == 0:
-        #     print("{:.03f}/{:02d} \t {}\t {:.04f}\t {:.01f} sec".format(train_iter.epoch_detail,
-        #                                                                 train_iter.epoch + 1,
-        #                                                                 num_steps,
-        #                                                                 loss.data.cpu().numpy()[0],
-        #                                                                 time() - time_s))
+        if config.debug:
+            dummy_norm = 50.0
+            norm = torch.nn.utils.clip_grad_norm(model.parameters(), dummy_norm)
+            prog.update(num_steps, values=[("train loss", loss.data.cpu().numpy()[0]),], exact=[("norm", norm)])
 
         # if num_steps % (iter_per_epoch // 2) == 0:
         #     CalculateBleu(model, test_data, 'val/main/bleu', device=-1, batch=args.batchsize // 4)()
-
-
 
         # Check the validation accuracy of prediction after every epoch
         if train_iter.is_new_epoch:  # If this iteration is the final iteration of the current epoch
@@ -343,7 +286,7 @@ def main():
     record_trigger = training.triggers.MinValueTrigger(
         'val/main/perp', eval_trigger)
 
-    evaluator = extensions.Evaluator(test_iter, model, converter=seq2seq_pad_concat_convert, device=args.gpu0)
+    evaluator = extensions.Evaluator(test_iter, model, converter=seq2seq_pad_concat_convert, device=config.gpu0)
     evaluator.default_name = 'val'
     trainer.extend(evaluator, trigger=eval_trigger)
 
@@ -357,9 +300,9 @@ def main():
 
     # If you use a shallow layer network (<=2),
     # you may not have to change it from the paper setting.
-    if not args.use_fixed_lr:
+    if not config.use_fixed_lr:
         trainer.extend(
-            VaswaniRule('alpha', d=args.unit, warmup_steps=4000, scale=1.),
+            VaswaniRule('alpha', d=config.unit, warmup_steps=4000, scale=1.),
             # VaswaniRule('alpha', d=args.unit, warmup_steps=32000, scale=1.),
             # VaswaniRule('alpha', d=args.unit, warmup_steps=4000, scale=0.5),
             # VaswaniRule('alpha', d=args.unit, warmup_steps=16000, scale=1.),
@@ -408,10 +351,10 @@ def main():
     #     translate,
     #     trigger=(min(200, iter_per_epoch), 'iteration'))
 
-    if not args.no_bleu:
+    if not config.no_bleu:
         trainer.extend(
             CalculateBleu(model, test_data, 'val/main/bleu', hyp_dev_path, target_vocab, ref_dev_path,
-                          device=args.gpu0, batch=args.batchsize // 4),
+                          device=config.gpu0, batch=config.batchsize // 4),
             trigger=floor_step((iter_per_epoch, 'iteration')))
 
     # Log
