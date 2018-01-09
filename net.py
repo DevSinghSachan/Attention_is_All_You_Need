@@ -354,8 +354,6 @@ class Transformer(torch.nn.Module):
         # reporter.report({'loss': loss.data * normalizer / n_token,
         #                  'acc': accuracy.data,
         #                  'perp': perp}, self)
-
-        print(loss)
         return loss
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False):

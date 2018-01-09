@@ -25,7 +25,6 @@ import preprocess
 import net
 from subfuncs import VaswaniRule
 
-
 if torch.cuda.is_available():
     torch.cuda.set_device(0)
 
@@ -292,12 +291,11 @@ def main():
         optimizer.step()
 
         if num_steps % 200 == 0:
-            print(time() - time_s)
             print("{:.03f}/{:02d} \t {}\t {:.04f}\t {:.01f} sec".format(train_iter.epoch_detail,
-                                                                                  train_iter.epoch + 1,
-                                                                                  num_steps,
-                                                                                  loss.data.cpu().numpy(),
-                                                                                  time() - time_s))
+                                                                        train_iter.epoch + 1,
+                                                                        num_steps,
+                                                                        loss.data.cpu().numpy()[0],
+                                                                        time() - time_s))
 
         if num_steps % (iter_per_epoch // 2) == 0:
             CalculateBleu(model, test_data, 'val/main/bleu', device=-1, batch=args.batchsize // 4)()
