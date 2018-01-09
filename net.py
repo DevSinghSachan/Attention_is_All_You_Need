@@ -276,20 +276,14 @@ class Transformer(torch.nn.Module):
         channels = emb_dim
         position = np.arange(length, dtype='f')
         num_timescales = channels // 2
-        log_timescale_increment = (
-            np.log(10000. / 1.) /
-            (float(num_timescales) - 1))
-        inv_timescales = 1. * np.exp(
-            np.arange(num_timescales).astype('f') * -log_timescale_increment)
-        scaled_time = \
-            np.expand_dims(position, 1) * \
-            np.expand_dims(inv_timescales, 0)
-        signal = np.concatenate(
-            [np.sin(scaled_time), np.cos(scaled_time)], axis=1)
+        log_timescale_increment = (np.log(10000. / 1.) / (float(num_timescales) - 1))
+        inv_timescales = 1. * np.exp(np.arange(num_timescales).astype('f') * -log_timescale_increment)
+        scaled_time = np.expand_dims(position, 1) * np.expand_dims(inv_timescales, 0)
+        signal = np.concatenate([np.sin(scaled_time), np.cos(scaled_time)], axis=1)
         signal = np.reshape(signal, [1, length, channels])
         position_encoding_block = np.transpose(signal, (0, 2, 1))
-        self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block),
-                                                    requires_grad=False)
+
+        self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block), requires_grad=False)
         self.register_parameter("Position Encoding Block", self.position_encoding_block)
 
     # def to_gpu(self, device=None):
@@ -338,21 +332,15 @@ class Transformer(torch.nn.Module):
     def output_and_loss(self, h_block, t_block):
         batch, units, length = h_block.shape
         # Output (all together at once for efficiency)
-        concat_logit_block = seq_func(self.affine, h_block, reconstruct_shape=False)
+        # concat_logit_block = seq_func(self.affine, h_block, reconstruct_shape=False)
+        concat_logit_block = seq_func(self.output, h_block, reconstruct_shape=False)
         rebatch, _ = concat_logit_block.shape
 
         # Make target
         concat_t_block = t_block.view(rebatch)
         ignore_mask = (concat_t_block >= 1)
         loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
-
         # accuracy = F.accuracy(concat_logit_block, concat_t_block, ignore_label=0)
-        # perp = self.xp.exp(loss.data * normalizer / n_token)
-        #
-        # # Report the Values
-        # reporter.report({'loss': loss.data * normalizer / n_token,
-        #                  'acc': accuracy.data,
-        #                  'perp': perp}, self)
         return loss
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False):

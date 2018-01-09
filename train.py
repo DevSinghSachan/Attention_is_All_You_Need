@@ -214,7 +214,7 @@ def main():
     # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
     optimizer = TransformerAdamTrainer(model)
     train_iter = chainer.iterators.SerialIterator(train_data, config.batchsize)
-    test_iter = chainer.iterators.SerialIterator(test_data, config.batchsize, repeat=False, shuffle=False)
+    test_iter = chainer.iterators.SerialIterator(test_data, config.batchsize // 2, repeat=False, shuffle=False)
 
     iter_per_epoch = len(train_data) // config.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
