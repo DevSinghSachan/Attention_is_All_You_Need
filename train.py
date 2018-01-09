@@ -270,9 +270,7 @@ def main():
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
     print("epoch \t steps \t train_loss \t lr \t time")
-
     prog = general_utils.Progbar(target=iter_per_epoch)
-
     num_steps = 0
     time_s = time()
 
@@ -306,6 +304,7 @@ def main():
 
         # Check the validation accuracy of prediction after every epoch
         if train_iter.is_new_epoch:  # If this iteration is the final iteration of the current epoch
+            prog = general_utils.Progbar(target=iter_per_epoch)
             test_losses = []
             while True:
                 model.eval()
