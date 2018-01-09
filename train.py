@@ -114,12 +114,12 @@ def source_pad_concat_convert(x_seqs, device, eos_id=1, bos_id=3):
 
 
 class CalculateBleu(object):
-    def __init__(self, model, test_data, key, batch=50, device=-1, max_length=50):
+    def __init__(self, model, test_data, key, batch=50, max_length=50):
         self.model = model
         self.test_data = test_data
         self.key = key
         self.batch = batch
-        self.device = device
+        self.device = -1
         self.max_length = max_length
 
     def __call__(self):
@@ -206,7 +206,7 @@ def main():
     prog = general_utils.Progbar(target=iter_per_epoch)
     num_steps = 0
 
-    CalculateBleu(model, test_data, 'val/main/bleu', device=config.gpu, batch=config.batchsize // 4)()
+    CalculateBleu(model, test_data, 'val/main/bleu', batch=config.batchsize // 4)()
 
     while train_iter.epoch < config.epoch:
         time_s = time()
@@ -255,7 +255,7 @@ def main():
 
             print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
 
-            CalculateBleu(model, test_data, 'val/main/bleu', device=config.gpu, batch=config.batchsize//4)()
+            CalculateBleu(model, test_data, 'val/main/bleu', batch=config.batchsize//4)()
             ############################################################
 
     # If you want to change a logging interval, change this number
