@@ -108,17 +108,17 @@ class MultiHeadAttention(torch.nn.Module):
         # Calculate Attention Scores with Mask for Zero-padded Areas
         # Perform Multi-head Attention using pseudo batching
         # all together at once for efficiency
-        batch_Q = torch.cat(torch.chunk(Q, h, dim=1), dim=0)
-        batch_K = torch.cat(torch.chunk(K, h, dim=1), dim=0)
-        batch_V = torch.cat(torch.chunk(V, h, dim=1), dim=0)
+        Q = torch.cat(torch.chunk(Q, h, dim=1), dim=0)
+        K = torch.cat(torch.chunk(K, h, dim=1), dim=0)
+        V = torch.cat(torch.chunk(V, h, dim=1), dim=0)
 
-        assert (batch_Q.shape == (batch * h, n_units // h, n_querys))
-        assert (batch_K.shape == (batch * h, n_units // h, n_keys))
-        assert (batch_V.shape == (batch * h, n_units // h, n_keys))
+        assert (Q.shape == (batch * h, n_units // h, n_querys))
+        assert (K.shape == (batch * h, n_units // h, n_keys))
+        assert (V.shape == (batch * h, n_units // h, n_keys))
 
         mask = torch.cat([mask] * h, dim=0)
-        batch_Q = batch_Q.transpose(1, 2).contiguous()
-        batch_A = torch.bmm(batch_Q, batch_K) * self.scale_score
+        Q = Q.transpose(1, 2).contiguous()
+        batch_A = torch.bmm(Q, K) * self.scale_score
 
         batch_A = batch_A.masked_fill(1. - mask, -np.inf)
         batch_A = F.softmax(batch_A, dim=2)
@@ -129,17 +129,17 @@ class MultiHeadAttention(torch.nn.Module):
 
         batch_A = batch_A.masked_fill(batch_A != batch_A, 0.)
 
-        if torch.cuda.is_available():
-            batch_A = batch_A.cuda()
+        # if torch.cuda.is_available():
+        #     batch_A = batch_A.cuda()
         assert (batch_A.shape == (batch * h, n_querys, n_keys))
 
         # Calculate Weighted Sum
-        batch_V = batch_V.transpose(1, 2).contiguous()
-        batch_C = torch.transpose(torch.bmm(batch_A, batch_V), 1, 2).contiguous()
-        assert (batch_C.shape == (batch * h, n_units // h, n_querys))
+        V = V.transpose(1, 2).contiguous()
+        C = torch.transpose(torch.bmm(batch_A, V), 1, 2).contiguous()
+        assert (C.shape == (batch * h, n_units // h, n_querys))
 
         # Joining the Multiple Heads
-        C = torch.cat(torch.chunk(batch_C, h, dim=0), dim=1)
+        C = torch.cat(torch.chunk(C, h, dim=0), dim=1)
         assert (C.shape == (batch, n_units, n_querys))
         C = self.finishing_linear_layer(C)
         return C
