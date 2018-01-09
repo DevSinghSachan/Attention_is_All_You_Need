@@ -71,13 +71,6 @@ class LinearSent(nn.Module):
         return output
 
 
-# differentiable equivalent of np.where
-# cond could be a FloatTensor with zeros and ones
-def where(cond, x_1, x_2):
-    cond = cond.float()
-    return (cond * x_1) + ((1-cond) * x_2)
-
-
 class MultiHeadAttention(torch.nn.Module):
     """ Multi Head Attention Layer for Sentence Blocks
     For batch computation efficiency, dot product to calculate query-key
@@ -127,11 +120,10 @@ class MultiHeadAttention(torch.nn.Module):
         # Replaces 'NaN' with zeros and other values with the original ones
         # Currently torch.where is only supported in CPU
         # batch_A = torch.where((batch_A != batch_A).cpu(), Variable(torch.zeros(batch_A.shape)), batch_A.cpu())
-
-        batch_A = batch_A.masked_fill(batch_A != batch_A, 0.)
-
         # if torch.cuda.is_available():
         #     batch_A = batch_A.cuda()
+
+        batch_A = batch_A.masked_fill(batch_A != batch_A, 0.)
         assert (batch_A.shape == (batch * h, n_querys, n_keys))
 
         # Calculate Weighted Sum

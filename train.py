@@ -69,10 +69,9 @@ def seq2seq_pad_concat_convert(xy_batch, device, eos_id=1, bos_id=3):
     y_in_block = np.pad(y_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
 
     # Converting from numpy format to Torch Tensor
-    with torch.no_grad():
-        x_block, y_in_block, y_out_block = Variable(torch.LongTensor(x_block)), \
-                                           Variable(torch.LongTensor(y_in_block)), \
-                                           Variable(torch.LongTensor(y_out_block))
+    x_block, y_in_block, y_out_block = Variable(torch.LongTensor(x_block)), \
+                                       Variable(torch.LongTensor(y_in_block)), \
+                                       Variable(torch.LongTensor(y_out_block))
 
     if torch.cuda.is_available():
         x_block, y_in_block, y_out_block = x_block.cuda(), y_in_block.cuda(), y_out_block.cuda()
