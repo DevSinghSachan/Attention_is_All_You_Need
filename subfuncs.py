@@ -29,9 +29,9 @@ class TransformerAdamTrainer(object):
 
         self.optimizer.step()
 
-        if self.steps % 200 == 0:
-            print('> Optimizer Logging')
-            print('  Steps=%d, learning_rate=%.2e' % (self.steps, decay))
+        # if self.steps % 200 == 0:
+        #     print('> Optimizer Logging')
+        #     print('  Steps=%d, learning_rate=%.2e' % (self.steps, decay))
 
     def zero_grad(self):
         self.optimizer.zero_grad()
