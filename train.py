@@ -280,7 +280,6 @@ def main():
     model.train()
     while train_iter.epoch < args.epoch:
         optimizer.zero_grad()
-
         num_steps += 1
 
         # ---------- One iteration of the training loop ----------

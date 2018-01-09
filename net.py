@@ -248,14 +248,16 @@ class Decoder(torch.nn.Module):
         return e
 
 
-
-
 class Transformer(torch.nn.Module):
     def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, h=8, dropout=0.1, max_length=500,
                  use_label_smoothing=False, embed_position=False):
         super(Transformer, self).__init__()
         self.embed_x = nn.Embedding(n_source_vocab, n_units, padding_idx=0)
         self.embed_y = nn.Embedding(n_target_vocab, n_units, padding_idx=0)
+
+        self.embed_x.weight.data.uniform_(-3. / n_source_vocab, 3. / n_source_vocab)
+        self.embed_y.weight.data.uniform_(-3. / n_target_vocab, 3. / n_target_vocab)
+
         self.embed_dropout = nn.Dropout(dropout)
         self.encoder = Encoder(n_layers, n_units, h, dropout)
         self.decoder = Decoder(n_layers, n_units, h, dropout)
@@ -353,7 +355,7 @@ class Transformer(torch.nn.Module):
         #                  'acc': accuracy.data,
         #                  'perp': perp}, self)
 
-        #print(loss)
+        print(loss)
         return loss
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False):
