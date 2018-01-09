@@ -224,7 +224,6 @@ class Encoder(torch.nn.Module):
         super(Encoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(1, n_layers + 1):
-            name = 'l{}'.format(i)
             layer = EncoderLayer(n_units, h, dropout)
             self.layers.append(layer)
 

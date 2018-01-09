@@ -265,9 +265,7 @@ def main():
     # optimizer = chainer.optimizers.Adam(alpha=5e-5, beta1=0.9, beta2=0.98, eps=1e-9)
 
     train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
-
-    test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize,
-                                                 repeat=False, shuffle=False)
+    test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize, repeat=False, shuffle=False)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
@@ -276,15 +274,14 @@ def main():
     num_steps = 0
     time_s = time()
 
-    model.train()
     while train_iter.epoch < args.epoch:
+        model.train()
         optimizer.zero_grad()
         num_steps += 1
 
         # ---------- One iteration of the training loop ----------
         train_batch = train_iter.next()
         in_arrays = seq2seq_pad_concat_convert(train_batch, -1)
-        # model.set_dropout(args.dropout)
         loss = model(*in_arrays)
 
         loss.backward()
@@ -297,18 +294,18 @@ def main():
                                                                         loss.data.cpu().numpy()[0],
                                                                         time() - time_s))
 
-        if num_steps % (iter_per_epoch // 2) == 0:
-            CalculateBleu(model, test_data, 'val/main/bleu', device=-1, batch=args.batchsize // 4)()
+        # if num_steps % (iter_per_epoch // 2) == 0:
+        #     CalculateBleu(model, test_data, 'val/main/bleu', device=-1, batch=args.batchsize // 4)()
 
         # Check the validation accuracy of prediction after every epoch
         if train_iter.is_new_epoch:  # If this iteration is the final iteration of the current epoch
             test_losses = []
             while True:
+                model.eval()
                 test_batch = test_iter.next()
                 in_arrays = seq2seq_pad_concat_convert(test_batch, -1)
 
                 # Forward the test data
-                model.set_dropout(0.0)
                 loss_test = model(*in_arrays)
 
                 # Calculate the accuracy
