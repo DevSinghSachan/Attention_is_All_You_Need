@@ -6,7 +6,8 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.autograd import Variable
 from train import source_pad_concat_convert
-
+import torch.backends.cudnn as cudnn
+cudnn.benchmark = True
 
 def sentence_block_embed(embed, x):
     batch, length = x.shape
@@ -99,10 +100,8 @@ class MultiHeadAttention(torch.nn.Module):
 
         if z is None:
             K, V = self.W_K(x), self.W_V(x)
-            del x
         else:
             K, V = self.W_K(z), self.W_V(z)
-            del x, z
 
         batch, n_units, n_querys = Q.shape
         _, _, n_keys = K.shape
@@ -280,17 +279,6 @@ class Transformer(torch.nn.Module):
 
         self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block), requires_grad=False)
         self.register_parameter("Position Encoding Block", self.position_encoding_block)
-
-    # def to_gpu(self, device=None):
-    #     # super(chainer.Chain, self).to_gpu(device)
-    #     # xp = cuda.get_array_module()
-    #     #import cupy
-    #     with cuda._get_device(device):
-    #         super(chainer.Chain, self).to_gpu()
-    #         d = self.__dict__
-    #         for name in self._children:
-    #             d[name].to_gpu()
-    #         self.position_encoding_block = cupy.asarray(self.position_encoding_block)
 
     def make_input_embedding(self, embed, block):
         batch, length = block.shape
