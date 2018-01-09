@@ -290,7 +290,6 @@ def main():
         norm = torch.nn.utils.clip_grad_norm(model.parameters(), 50.0)
         optimizer.step()
 
-        print(norm)
         prog.update(num_steps, values=[("train loss", loss),], exact=[("norm", norm)])
 
         # if num_steps % 200 == 0:
