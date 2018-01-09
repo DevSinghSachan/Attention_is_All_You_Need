@@ -184,8 +184,8 @@ def main():
     prog = general_utils.Progbar(target=iter_per_epoch)
     num_steps = 0
 
+    time_s = time()
     while train_iter.epoch < config.epoch:
-        time_s = time()
         model.train()
         optimizer.zero_grad()
         num_steps += 1
