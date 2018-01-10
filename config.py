@@ -50,9 +50,8 @@ def get_args():
                         help='Vocabulary size of target language')
     parser.add_argument('--no-bleu', '-no-bleu', action='store_true',
                         help='Skip BLEU calculation')
-    parser.add_argument('--label_smoothing', dest='label_smoothing', action='store_true',
+    parser.add_argument('--label_smoothing', type=float, default=0.0,
                         help='Use label smoothing for cross-entropy')
-    parser.set_defaults(label_smoothing=False)
 
     parser.add_argument('--embed-position', action='store_true',
                         help='Use position embedding rather than sinusoid')

@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
 from train import source_pad_concat_convert
-import util
+import utils
 
 cudnn.benchmark = True
 
@@ -360,16 +360,14 @@ class Transformer(nn.Module):
         else:
             loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
 
-        accuracy = util.accuracy(concat_logit_block, concat_t_block, ignore_index=0)
+        accuracy = utils.accuracy(concat_logit_block, concat_t_block, ignore_index=0)
         perplexity = torch.exp(loss.data)
 
-        print(accuracy, perplexity)
-
         if self.label_smoothing:
-            pre_loss = loss
+            pre_loss = (1 - self.label_smoothing) * loss
             ls_loss = -1. / self.n_target_vocab * broad_ignore_mask * log_prob
             ls_loss = torch.sum(ls_loss) / normalizer
-            loss = (0.9 * pre_loss) + (0.1 * ls_loss)
+            loss = pre_loss + (self.label_smoothing * ls_loss)
 
         return loss, accuracy, perplexity
 

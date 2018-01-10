@@ -18,6 +18,7 @@ from chainer.dataset import convert
 import preprocess
 import net
 from subfuncs import TransformerAdamTrainer
+from torchtext import data
 import general_utils
 from config import get_args
 
@@ -51,9 +52,7 @@ def seq2seq_pad_concat_convert(xy_batch, device, eos_id=1, bos_id=3):
     x_block = convert.concat_examples(x_seqs, device, padding=0)
     y_block = convert.concat_examples(y_seqs, device, padding=0)
 
-    # The paper did not mention eos
-    # add eos
-
+    # Add EOS
     x_block = np.pad(x_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
 
     for i_batch, seq in enumerate(x_seqs):
@@ -176,61 +175,64 @@ def main():
     print(model)
 
     # Setup Optimizer
-    # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
     optimizer = TransformerAdamTrainer(model)
-    train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
+    # train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
+
     test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize // 2, repeat=False, shuffle=False)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
     print("epoch \t steps \t train_loss \t lr \t time")
     prog = general_utils.Progbar(target=iter_per_epoch)
-    num_steps = 0
-
     time_s = time()
-    while train_iter.epoch < args.epoch:
+
+    for epoch in range(args.epoch):
+        train_iter = data.iterator.pool(train_data, args.batchsize,
+                                        key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
+                                        random_shuffler=data.iterator.RandomShuffler())
+
+
         model.train()
-        optimizer.zero_grad()
-        num_steps += 1
+        for num_steps, minibatch in enumerate(train_iter):
+            optimizer.zero_grad()
 
-        # ---------- One iteration of the training loop ----------
-        train_batch = train_iter.next()
-        in_arrays = seq2seq_pad_concat_convert(train_batch, -1)
-        loss, acc, perp = model(*in_arrays)
+            # ---------- One iteration of the training loop ----------
+            # train_batch = next(iter(train_iter))
+            in_arrays = seq2seq_pad_concat_convert(minibatch, -1)
+            loss, acc, perp = model(*in_arrays)
 
-        loss.backward()
-        # norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
-        optimizer.step()
+            loss.backward()
+            # norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
+            optimizer.step()
 
-        if args.debug:
-            dummy_norm = 50.0
-            norm = torch.nn.utils.clip_grad_norm(model.parameters(), dummy_norm)
-            prog.update(num_steps, values=[("train loss", loss.data.cpu().numpy()[0]),], exact=[("norm", norm)])
+            if args.debug:
+                dummy_norm = 50.0
+                norm = torch.nn.utils.clip_grad_norm(model.parameters(), dummy_norm)
+                prog.update(num_steps, values=[("train loss", loss.data.cpu().numpy()[0]),], exact=[("norm", norm)])
 
         # Check the validation accuracy of prediction after every epoch
-        if train_iter.is_new_epoch:  # If this iteration is the final iteration of the current epoch
-            prog = general_utils.Progbar(target=iter_per_epoch)
-            test_losses = []
-            while True:
-                model.eval()
-                test_batch = test_iter.next()
-                in_arrays = seq2seq_pad_concat_convert(test_batch, -1)
+        prog = general_utils.Progbar(target=iter_per_epoch)
+        test_losses = []
+        while True:
+            model.eval()
+            test_batch = test_iter.next()
+            in_arrays = seq2seq_pad_concat_convert(test_batch, -1)
 
-                # Forward the test data
-                loss_test, acc, perp = model(*in_arrays)
+            # Forward the test data
+            loss_test, acc, perp = model(*in_arrays)
 
-                # Calculate the accuracy
-                test_losses.append(loss_test.data.cpu().numpy())
+            # Calculate the accuracy
+            test_losses.append(loss_test.data.cpu().numpy())
 
-                if test_iter.is_new_epoch:
-                    test_iter.epoch = 0
-                    test_iter.current_position = 0
-                    test_iter.is_new_epoch = False
-                    test_iter._pushed_position = None
-                    break
+            if test_iter.is_new_epoch:
+                test_iter.epoch = 0
+                test_iter.current_position = 0
+                test_iter.is_new_epoch = False
+                test_iter._pushed_position = None
+                break
 
-            print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
-            CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize//4)()
+        print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
+        CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize//4)()
 
 
 if __name__ == '__main__':
