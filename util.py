@@ -1,72 +1,29 @@
-import os
-from argparse import ArgumentParser
-from datetime import datetime
-import random
+import torch
 
-def get_args():
-    parser = ArgumentParser(description='Implementation of "Attention is All You Need" in Pytorch')
 
-    parser.add_argument('--batchsize', '-b', type=int, default=100,
-                        help='Number of sentences in each mini-batch')
-    parser.add_argument('--epoch', '-e', type=int, default=40,
-                        help='Number of sweeps over the dataset to train')
-    parser.add_argument('--gpu', '-g', type=int, default=-1,
-                        help='GPU ID (negative value indicates CPU)')
-    parser.add_argument('--gpu_ids', nargs='+', type=int, default=[0, 1, 2, 3])
-    parser.add_argument('--unit', '-u', type=int, default=512,
-                        help='Number of units')
-    parser.add_argument('--layer', '-l', type=int, default=1,
-                        help='Number of layers')
-    parser.add_argument('--head', type=int, default=8,
-                        help='Number of heads in attention mechanism')
-    parser.add_argument('--dropout', '-d', type=float, default=0.2,
-                        help='Dropout rate')
-    parser.add_argument('--tied', dest='tied', action='store_true',
-                        help='tie target word embedding and output softmax layer')
-    parser.set_defaults(tied=False)
+class Accuracy(object):
+    def __init__(self, ignore_index=None):
+        self.ignore_label = ignore_index
 
-    parser.add_argument('--input', '-i', type=str, default='./data',
-                        help='Input directory')
-    parser.add_argument('--source', '-s', type=str,
-                        default='train.ja',
-                        help='Filename of train data for source language')
-    parser.add_argument('--target', '-t', type=str,
-                        default='train.en',
-                        help='Filename of train data for target language')
-    parser.add_argument('--source-valid', '-svalid', type=str,
-                        default='dev.ja',
-                        help='Filename of validation data for source language')
-    parser.add_argument('--target-valid', '-tvalid', type=str,
-                        default='dev.en',
-                        help='Filename of validation data for target language')
-    parser.add_argument('--target-valid-raw', '-tvalid_raw', type=str,
-                        default='dev.en',
-                        help='Filename of raw validation data for target language')
-    parser.add_argument('--out', '-o', default='result',
-                        help='Directory to output the result')
-    parser.add_argument('--source-vocab', type=int, default=40000,
-                        help='Vocabulary size of source language')
-    parser.add_argument('--target-vocab', type=int, default=40000,
-                        help='Vocabulary size of target language')
-    parser.add_argument('--no-bleu', '-no-bleu', action='store_true',
-                        help='Skip BLEU calculation')
-    parser.add_argument('--label_smoothing', dest='label_smoothing', action='store_true',
-                        help='Use label smoothing for cross-entropy')
-    parser.set_defaults(label_smoothing=False)
+    def __call__(self, y, t):
+        if self.ignore_label is not None:
+            mask = (t == self.ignore_label)
+            ignore_cnt = torch.sum(mask.float())
+            _, pred = torch.max(y, dim=1)
+            pred = pred.view(t.shape)
+            pred = pred.masked_fill(mask, self.ignore_label)
+            count = torch.sum((pred == t).float()) - ignore_cnt
+            total = torch.numel(t) - ignore_cnt
 
-    parser.add_argument('--embed-position', action='store_true',
-                        help='Use position embedding rather than sinusoid')
-    parser.add_argument('--use-fixed-lr', action='store_true',
-                        help='Use fixed learning rate rather than the ' +
-                             'annealing proposed in the paper')
-    parser.add_argument('--hyp_dev', default='hyp_dev.txt')
-    parser.add_argument('--hyp_test', default='hyp_test.txt')
+            if total == 0:
+                return torch.FloatTensor([0.0])
+            else:
+                return count / total
+        else:
+            _, pred = torch.max(y, dim=1)
+            pred = pred.view(t.shape)
+            return torch.mean((pred == t).float())
 
-    # In debug, print progress bar, otherwise not
-    parser.add_argument('--debug', dest='debug', action='store_true')
-    parser.set_defaults(debug=False)
 
-    args = parser.parse_args()
-    return args
-
-get_args()
+def accuracy(y, t, ignore_index=None):
+    return Accuracy(ignore_index=ignore_index)(y, t)

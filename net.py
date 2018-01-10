@@ -7,6 +7,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
 from train import source_pad_concat_convert
+import util
 
 cudnn.benchmark = True
 
@@ -359,16 +360,18 @@ class Transformer(nn.Module):
         else:
             loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
 
-        # accuracy = F.accuracy(concat_logit_block, concat_t_block, ignore_label=-1)
-        perp = torch.exp(loss.data)
+        accuracy = util.accuracy(concat_logit_block, concat_t_block, ignore_index=0)
+        perplexity = torch.exp(loss.data)
+
+        print(accuracy, perplexity)
 
         if self.label_smoothing:
             pre_loss = loss
             ls_loss = -1. / self.n_target_vocab * broad_ignore_mask * log_prob
             ls_loss = torch.sum(ls_loss) / normalizer
-            loss = 0.9 * pre_loss + 0.1 * ls_loss
+            loss = (0.9 * pre_loss) + (0.1 * ls_loss)
 
-        return loss
+        return loss, accuracy, perplexity
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False):
         batch, x_length = x_block.shape
@@ -414,7 +417,6 @@ class Transformer(nn.Module):
         result = []
         for i in range(max_length):
             log_prob_tail = self(x_block, y_block, y_block, get_prediction=True)
-            # ys = np.argmax(log_prob_tail.data.cpu().numpy(), axis=1).astype('i')
             _, ys = torch.max(log_prob_tail, dim=1)
             y_block = torch.cat([y_block.detach(), ys[:, None]], dim=1)
             ys = ys.data.cpu().numpy()

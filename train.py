@@ -19,7 +19,7 @@ import preprocess
 import net
 from subfuncs import TransformerAdamTrainer
 import general_utils
-from util import get_args
+from config import get_args
 
 if torch.cuda.is_available():
     torch.cuda.set_device(0)
@@ -101,7 +101,6 @@ class CalculateBleu(object):
         self.max_length = max_length
 
     def __call__(self):
-        print('## Calculate BLEU')
         self.model.eval()
         references = []
         hypotheses = []
@@ -120,17 +119,17 @@ class CalculateBleu(object):
 
 
 def main():
-    config = get_args()
+    args = get_args()
 
-    print(json.dumps(config.__dict__, indent=4))
+    print(json.dumps(args.__dict__, indent=4))
 
     # Check file
-    source_path = os.path.join(config.input, config.source)
-    source_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(source_path, config.source_vocab)
+    source_path = os.path.join(args.input, args.source)
+    source_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(source_path, args.source_vocab)
     source_data = preprocess.make_dataset(source_path, source_vocab)
 
-    target_path = os.path.join(config.input, config.target)
-    target_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(target_path, config.target_vocab)
+    target_path = os.path.join(args.input, args.target)
+    target_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(target_path, args.target_vocab)
     target_data = preprocess.make_dataset(target_path, target_vocab)
     assert len(source_data) == len(target_data)
 
@@ -141,16 +140,16 @@ def main():
     train_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) < 50 and 0 < len(t) < 50]
     print('Filtered training data size: %d' % len(train_data))
 
-    source_path = os.path.join(config.input, config.source_valid)
+    source_path = os.path.join(args.input, args.source_valid)
     source_data = preprocess.make_dataset(source_path, source_vocab)
-    target_path = os.path.join(config.input, config.target_valid)
+    target_path = os.path.join(args.input, args.target_valid)
     target_data = preprocess.make_dataset(target_path, target_vocab)
     assert len(source_data) == len(target_data)
     test_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
 
-    hyp_dev_path = os.path.join(config.input, config.hyp_dev)
-    hyp_test_path = os.path.join(config.input, config.hyp_test)
-    ref_dev_path = os.path.join(config.input, config.target_valid_raw)
+    hyp_dev_path = os.path.join(args.input, args.hyp_dev)
+    hyp_test_path = os.path.join(args.input, args.hyp_test)
+    ref_dev_path = os.path.join(args.input, args.target_valid_raw)
 
     source_ids = {word: index for index, word in enumerate(source_vocab)}
     target_ids = {word: index for index, word in enumerate(target_vocab)}
@@ -159,37 +158,37 @@ def main():
     source_words = {i: w for w, i in source_ids.items()}
 
     # Define Model
-    model = net.Transformer(config.layer,
+    model = net.Transformer(args.layer,
                             min(len(source_ids), len(source_words)),
                             min(len(target_ids), len(target_words)),
-                            config.unit,
-                            h=config.head,
-                            dropout=config.dropout,
+                            args.unit,
+                            h=args.head,
+                            dropout=args.dropout,
                             max_length=500,
-                            label_smoothing=config.label_smoothing,
-                            embed_position=config.embed_position,
+                            label_smoothing=args.label_smoothing,
+                            embed_position=args.embed_position,
                             layer_norm=True,
-                            tied=config.tied)
+                            tied=args.tied)
 
-    if config.gpu >= 0:
-        model.cuda(config.gpu)
+    if args.gpu >= 0:
+        model.cuda(args.gpu)
 
     print(model)
 
     # Setup Optimizer
     # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
     optimizer = TransformerAdamTrainer(model)
-    train_iter = chainer.iterators.SerialIterator(train_data, config.batchsize)
-    test_iter = chainer.iterators.SerialIterator(test_data, config.batchsize // 2, repeat=False, shuffle=False)
+    train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
+    test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize // 2, repeat=False, shuffle=False)
 
-    iter_per_epoch = len(train_data) // config.batchsize
+    iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
     print("epoch \t steps \t train_loss \t lr \t time")
     prog = general_utils.Progbar(target=iter_per_epoch)
     num_steps = 0
 
     time_s = time()
-    while train_iter.epoch < config.epoch:
+    while train_iter.epoch < args.epoch:
         model.train()
         optimizer.zero_grad()
         num_steps += 1
@@ -197,13 +196,13 @@ def main():
         # ---------- One iteration of the training loop ----------
         train_batch = train_iter.next()
         in_arrays = seq2seq_pad_concat_convert(train_batch, -1)
-        loss = model(*in_arrays)
+        loss, acc, perp = model(*in_arrays)
 
         loss.backward()
         # norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
         optimizer.step()
 
-        if config.debug:
+        if args.debug:
             dummy_norm = 50.0
             norm = torch.nn.utils.clip_grad_norm(model.parameters(), dummy_norm)
             prog.update(num_steps, values=[("train loss", loss.data.cpu().numpy()[0]),], exact=[("norm", norm)])
@@ -218,7 +217,7 @@ def main():
                 in_arrays = seq2seq_pad_concat_convert(test_batch, -1)
 
                 # Forward the test data
-                loss_test = model(*in_arrays)
+                loss_test, acc, perp = model(*in_arrays)
 
                 # Calculate the accuracy
                 test_losses.append(loss_test.data.cpu().numpy())
@@ -231,7 +230,7 @@ def main():
                     break
 
             print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
-            CalculateBleu(model, test_data, 'val/main/bleu', batch=config.batchsize//4)()
+            CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize//4)()
 
 
 if __name__ == '__main__':
