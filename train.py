@@ -8,13 +8,12 @@ import numpy as np
 import six
 import random
 from time import time
-
 import torch
-import chainer
 
 import preprocess
+import evaluator
 import net
-from subfuncs import TransformerAdamTrainer
+import optimizer as optim
 from torchtext import data
 import utils
 import general_utils
@@ -39,13 +38,15 @@ class CalculateBleu(object):
         hypotheses = []
         for i in range(0, len(self.test_data), self.batch):
             sources, targets = zip(*self.test_data[i:i + self.batch])
-            references.extend([[t.tolist()] for t in targets])
+            # references.extend([[t.tolist()] for t in targets])
+            references.extend([t.tolist()] for t in targets)
             ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
             # greedy generation for efficiency
             hypotheses.extend(ys)
 
-        bleu = bleu_score.corpus_bleu(references, hypotheses, smoothing_function=bleu_score.SmoothingFunction().method1)
-        print('BLEU:', bleu)
+        # bleu = bleu_score.corpus_bleu(references, hypotheses, smoothing_function=bleu_score.SmoothingFunction().method1)
+        bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
+        print('BLEU:', bleu.score_Str())
 
 
 def main():
@@ -104,13 +105,15 @@ def main():
         model.cuda(args.gpu)
     print(model)
 
-    optimizer = TransformerAdamTrainer(model)
+    optimizer = optim.TransformerAdamTrainer(model)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
     print("epoch \t steps \t train_loss \t lr \t time")
     prog = general_utils.Progbar(target=iter_per_epoch)
     time_s = time()
+
+    CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
     for epoch in range(args.epoch):
         random.shuffle(train_data)
