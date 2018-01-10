@@ -9,5 +9,4 @@ BEST BLEU: 31.74 (1-layer model, B: 100, no Layer Norm)
 
 To be done:
 2. Comparison with BLEU Score
-4. Length based bucketing
 5. Beam Search

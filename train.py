@@ -7,88 +7,21 @@ from nltk.translate import bleu_score
 import numpy as np
 import six
 import random
-import io
-import subprocess
 from time import time
 
 import torch
-from torch.autograd import Variable
 import chainer
-from chainer.dataset import convert
 
 import preprocess
 import net
 from subfuncs import TransformerAdamTrainer
 from torchtext import data
+import utils
 import general_utils
 from config import get_args
 
 if torch.cuda.is_available():
     torch.cuda.set_device(0)
-
-
-def seq2seq_pad_concat_convert(xy_batch, device, eos_id=1, bos_id=3):
-    """
-    Args:
-        xy_batch (list of tuple of two numpy.ndarray-s or cupy.ndarray-s):
-            xy_batch[i][0] is an array
-            of token ids of i-th input sentence in a minibatch.
-            xy_batch[i][1] is an array
-            of token ids of i-th target sentence in a minibatch.
-            The shape of each array is `(sentence length, )`.
-        device (int or None): Device ID to which an array is sent. If it is
-            negative value, an array is sent to CPU. If it is positive, an
-            array is sent to GPU with the given ID. If it is ``None``, an
-            array is left in the original device.
-
-    Returns:
-        Tuple of Converted array.
-            (input_sent_batch_array, target_sent_batch_input_array,
-            target_sent_batch_output_array).
-            The shape of each array is `(batchsize, max_sentence_length)`.
-            All sentences are padded with -1 to reach max_sentence_length.
-    """
-
-    x_seqs, y_seqs = zip(*xy_batch)
-    x_block = convert.concat_examples(x_seqs, device, padding=0)
-    y_block = convert.concat_examples(y_seqs, device, padding=0)
-
-    # Add EOS
-    x_block = np.pad(x_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
-
-    for i_batch, seq in enumerate(x_seqs):
-        x_block[i_batch, len(seq)] = eos_id
-
-    x_block = np.pad(x_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
-
-    y_out_block = np.pad(y_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
-
-    for i_batch, seq in enumerate(y_seqs):
-        y_out_block[i_batch, len(seq)] = eos_id
-
-    y_in_block = np.pad(y_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
-
-    # Converting from numpy format to Torch Tensor
-    x_block, y_in_block, y_out_block = Variable(torch.LongTensor(x_block)), \
-                                       Variable(torch.LongTensor(y_in_block)), \
-                                       Variable(torch.LongTensor(y_out_block))
-
-    if torch.cuda.is_available():
-        x_block, y_in_block, y_out_block = x_block.cuda(), y_in_block.cuda(), y_out_block.cuda()
-
-    return x_block, y_in_block, y_out_block
-
-
-def source_pad_concat_convert(x_seqs, device, eos_id=1, bos_id=3):
-    x_block = convert.concat_examples(x_seqs, device, padding=0)
-
-    # add eos
-    x_block = np.pad(x_block, ((0, 0), (0, 1)), 'constant', constant_values=0)
-    for i_batch, seq in enumerate(x_seqs):
-        x_block[i_batch, len(seq)] = eos_id
-
-    x_block = np.pad(x_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
-    return x_block
 
 
 class CalculateBleu(object):
@@ -107,9 +40,6 @@ class CalculateBleu(object):
         for i in range(0, len(self.test_data), self.batch):
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend([[t.tolist()] for t in targets])
-
-            sources = [chainer.dataset.to_device(self.device, x) for x in sources]
-
             ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
             # greedy generation for efficiency
             hypotheses.extend(ys)
@@ -172,13 +102,9 @@ def main():
 
     if args.gpu >= 0:
         model.cuda(args.gpu)
-
     print(model)
 
-    # Setup Optimizer
     optimizer = TransformerAdamTrainer(model)
-    # train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
-    # test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize // 2, repeat=False, shuffle=False)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
@@ -198,7 +124,7 @@ def main():
 
             # ---------- One iteration of the training loop ----------
             # train_batch = next(iter(train_iter))
-            in_arrays = seq2seq_pad_concat_convert(train_batch, -1)
+            in_arrays = utils.seq2seq_pad_concat_convert(train_batch, -1)
             loss, acc, perp = model(*in_arrays)
 
             loss.backward()
@@ -213,13 +139,13 @@ def main():
         # Check the validation accuracy of prediction after every epoch
         prog = general_utils.Progbar(target=iter_per_epoch)
         test_losses = []
-        test_iter = data.iterator.pool(test_data, args.batchsize,
+        test_iter = data.iterator.pool(test_data, args.batchsize // 4,
                                        key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
                                        random_shuffler=data.iterator.RandomShuffler())
 
         for test_batch in test_iter:
             model.eval()
-            in_arrays = seq2seq_pad_concat_convert(test_batch, -1)
+            in_arrays = utils.seq2seq_pad_concat_convert(test_batch, -1)
             loss_test, acc, perp = model(*in_arrays)
             test_losses.append(loss_test.data.cpu().numpy())
 

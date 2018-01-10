@@ -6,7 +6,6 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
-from train import source_pad_concat_convert
 import utils
 
 cudnn.benchmark = True
@@ -403,7 +402,7 @@ class Transformer(nn.Module):
             return self.translate_beam(x_block, max_length, beam)
 
         # TODO: efficient inference by re-using result
-        x_block = source_pad_concat_convert(x_block, device=None)
+        x_block = utils.source_pad_concat_convert(x_block, device=None)
         batch, x_length = x_block.shape
         y_block = np.full((batch, 1), 3, dtype=x_block.dtype)  # bos
         eos_flags = np.zeros((batch,), dtype=x_block.dtype)
