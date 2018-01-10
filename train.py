@@ -46,7 +46,7 @@ class CalculateBleu(object):
 
         # bleu = bleu_score.corpus_bleu(references, hypotheses, smoothing_function=bleu_score.SmoothingFunction().method1)
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
-        print('BLEU:', bleu.score_Str())
+        print('BLEU:', bleu.score_str())
 
 
 def main():
