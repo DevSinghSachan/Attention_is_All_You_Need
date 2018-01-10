@@ -13,7 +13,8 @@ cudnn.benchmark = True
 
 class LayerNorm(nn.Module):
     """Layer normalization module.
-    Code from: https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/modules/UtilClass.py#L24"""
+    Code adapted from OpenNMT-py open-source toolkit on 08/01/2018:
+    URL: https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/modules/UtilClass.py#L24"""
     def __init__(self, d_hid, eps=1e-3):
         super(LayerNorm, self).__init__()
         self.eps = eps

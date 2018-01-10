@@ -3,7 +3,6 @@ from __future__ import unicode_literals, print_function
 
 import json
 import os.path
-from nltk.translate import bleu_score
 import numpy as np
 import six
 import random
@@ -75,10 +74,6 @@ def main():
     assert len(source_data) == len(target_data)
     test_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
 
-    hyp_dev_path = os.path.join(args.input, args.hyp_dev)
-    hyp_test_path = os.path.join(args.input, args.hyp_test)
-    ref_dev_path = os.path.join(args.input, args.target_valid_raw)
-
     source_ids = {word: index for index, word in enumerate(source_vocab)}
     target_ids = {word: index for index, word in enumerate(target_vocab)}
 
@@ -109,8 +104,6 @@ def main():
     print("epoch \t steps \t train_loss \t lr \t time")
     prog = general_utils.Progbar(target=iter_per_epoch)
     time_s = time()
-
-    CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
     for epoch in range(args.epoch):
         random.shuffle(train_data)
