@@ -193,7 +193,6 @@ def main():
                                         random_shuffler=data.iterator.RandomShuffler())
 
         for num_steps, train_batch in enumerate(train_iter):
-            print(num_steps)
             model.train()
             optimizer.zero_grad()
 
