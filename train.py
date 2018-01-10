@@ -6,6 +6,7 @@ import os.path
 from nltk.translate import bleu_score
 import numpy as np
 import six
+import random
 import io
 import subprocess
 from time import time
@@ -177,8 +178,7 @@ def main():
     # Setup Optimizer
     optimizer = TransformerAdamTrainer(model)
     # train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
-
-    test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize // 2, repeat=False, shuffle=False)
+    # test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize // 2, repeat=False, shuffle=False)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
@@ -187,18 +187,19 @@ def main():
     time_s = time()
 
     for epoch in range(args.epoch):
+        random.shuffle(train_data)
         train_iter = data.iterator.pool(train_data, args.batchsize,
                                         key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
                                         random_shuffler=data.iterator.RandomShuffler())
 
-
-        model.train()
-        for num_steps, minibatch in enumerate(train_iter):
+        for num_steps, train_batch in enumerate(train_iter):
+            print(num_steps)
+            model.train()
             optimizer.zero_grad()
 
             # ---------- One iteration of the training loop ----------
             # train_batch = next(iter(train_iter))
-            in_arrays = seq2seq_pad_concat_convert(minibatch, -1)
+            in_arrays = seq2seq_pad_concat_convert(train_batch, -1)
             loss, acc, perp = model(*in_arrays)
 
             loss.backward()
@@ -213,9 +214,12 @@ def main():
         # Check the validation accuracy of prediction after every epoch
         prog = general_utils.Progbar(target=iter_per_epoch)
         test_losses = []
-        while True:
+        test_iter = data.iterator.pool(test_data, args.batchsize,
+                                       key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
+                                       random_shuffler=data.iterator.RandomShuffler())
+
+        for test_batch in test_iter:
             model.eval()
-            test_batch = test_iter.next()
             in_arrays = seq2seq_pad_concat_convert(test_batch, -1)
 
             # Forward the test data
