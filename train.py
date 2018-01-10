@@ -38,13 +38,10 @@ class CalculateBleu(object):
         hypotheses = []
         for i in range(0, len(self.test_data), self.batch):
             sources, targets = zip(*self.test_data[i:i + self.batch])
-            # references.extend([[t.tolist()] for t in targets])
             references.extend(t.tolist() for t in targets)
             ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
-            # greedy generation for efficiency
             hypotheses.extend(ys)
 
-        # bleu = bleu_score.corpus_bleu(references, hypotheses, smoothing_function=bleu_score.SmoothingFunction().method1)
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
         print('BLEU:', bleu.score_str())
 
