@@ -1,2 +1,2 @@
 cd ..
-python train.py -s train-big.ja -t train-big.en -g 0
+python train.py -s train-big.ja -t train-big.en --tied -g 0

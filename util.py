@@ -21,6 +21,10 @@ def get_args():
                         help='Number of heads in attention mechanism')
     parser.add_argument('--dropout', '-d', type=float, default=0.2,
                         help='Dropout rate')
+    parser.add_argument('--tied', dest='tied', action='store_true',
+                        help='tie target word embedding and output softmax layer')
+    parser.set_defaults(tied=False)
+
     parser.add_argument('--input', '-i', type=str, default='./data',
                         help='Input directory')
     parser.add_argument('--source', '-s', type=str,
@@ -46,8 +50,10 @@ def get_args():
                         help='Vocabulary size of target language')
     parser.add_argument('--no-bleu', '-no-bleu', action='store_true',
                         help='Skip BLEU calculation')
-    parser.add_argument('--use-label-smoothing', action='store_true',
-                        help='Use label smoothing for cross entropy')
+    parser.add_argument('--label_smoothing', dest='label_smoothing', action='store_true',
+                        help='Use label smoothing for cross-entropy')
+    parser.set_defaults(label_smoothing=False)
+
     parser.add_argument('--embed-position', action='store_true',
                         help='Use position embedding rather than sinusoid')
     parser.add_argument('--use-fixed-lr', action='store_true',

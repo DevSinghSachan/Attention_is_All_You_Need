@@ -12,7 +12,8 @@ cudnn.benchmark = True
 
 
 class LayerNorm(nn.Module):
-    """Layer normalization module"""
+    """Layer normalization module.
+    Code from: https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/modules/UtilClass.py#L24"""
     def __init__(self, d_hid, eps=1e-3):
         super(LayerNorm, self).__init__()
         self.eps = eps
@@ -67,17 +68,16 @@ def seq_func(func, x, reconstruct_shape=True):
 
 class LayerNormSent(LayerNorm):
     """Position-wise layer-normalization layer for array of shape (batchsize, dimension, sentence_length)."""
-    def __init__(self, n_units, eps=1e-6):
+    def __init__(self, n_units, eps=1e-3):
         super(LayerNormSent, self).__init__(n_units, eps=eps)
 
     def forward(self, x):
         y = seq_func(super(LayerNormSent, self).forward, x)
         return y
-        # return x
 
 
 class LinearSent(nn.Module):
-    """Position-wise Linear Layer for Sentence Block"""
+    """Position-wise Linear Layer for sentence block. array of shape (batchsize, dimension, sentence_length)."""
     def __init__(self, input_dim, output_dim, bias=True):
         super(LinearSent, self).__init__()
         self.L = nn.Linear(input_dim, output_dim, bias=bias)
@@ -86,18 +86,17 @@ class LinearSent(nn.Module):
             self.L.bias.data.fill_(0.)
         self.output_dim = output_dim
 
-    def forward(self, input_expr):
-        batch_size, _, seq_len = input_expr.shape
-        output = self.L.weight.matmul(input_expr)
+    def forward(self, x):
+        output = self.L.weight.matmul(x)
         if self.L.bias is not None:
             output += self.L.bias.unsqueeze(-1)
         return output
 
 
 class MultiHeadAttention(nn.Module):
-    """ Multi Head Attention Layer for Sentence Blocks. For batch computation efficiency, dot product to calculate
-    query-key. scores is performed all heads together. """
-    def __init__(self, n_units, h=8, dropout=0.1):
+    """Multi Head Attention Layer for Sentence Blocks. For computational efficiency, dot-product to calculate
+    query-key scores is performed in all the heads together."""
+    def __init__(self, n_units, h=8, attn_dropout=False, dropout=0.2):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
         self.W_K = LinearSent(n_units, n_units, bias=False)
@@ -105,7 +104,9 @@ class MultiHeadAttention(nn.Module):
         self.finishing_linear_layer = LinearSent(n_units, n_units, bias=False)
         self.h = h
         self.scale_score = 1. / (n_units // h) ** 0.5
-        self.dropout = dropout
+        self.attn_dropout = attn_dropout
+        if attn_dropout:
+            self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, z=None, mask=None):
         h = self.h
@@ -118,9 +119,8 @@ class MultiHeadAttention(nn.Module):
         batch, n_units, n_querys = Q.shape
         _, _, n_keys = K.shape
 
-        # Calculate Attention Scores with Mask for Zero-padded Areas
-        # Perform Multi-head Attention using pseudo batching
-        # all together at once for efficiency
+        # Calculate attention scores with mask for zero-padded areas
+        # Perform multi-head attention using pseudo batching all together at once for efficiency
         Q = torch.cat(torch.chunk(Q, h, dim=1), dim=0)
         K = torch.cat(torch.chunk(K, h, dim=1), dim=0)
         V = torch.cat(torch.chunk(V, h, dim=1), dim=0)
@@ -140,6 +140,10 @@ class MultiHeadAttention(nn.Module):
         batch_A = batch_A.masked_fill(batch_A != batch_A, 0.)
         assert (batch_A.shape == (batch * h, n_querys, n_keys))
 
+        # Attention Dropout
+        if self.attn_dropout:
+            batch_A = self.dropout(batch_A)
+
         # Calculate Weighted Sum
         V = V.transpose(1, 2).contiguous()
         C = torch.transpose(torch.bmm(batch_A, V), 1, 2).contiguous()
@@ -148,6 +152,8 @@ class MultiHeadAttention(nn.Module):
         # Joining the Multiple Heads
         C = torch.cat(torch.chunk(C, h, dim=0), dim=1)
         assert (C.shape == (batch, n_units, n_querys))
+
+        # Final linear layer
         C = self.finishing_linear_layer(C)
         return C
 
@@ -157,8 +163,8 @@ class FeedForwardLayer(nn.Module):
         super(FeedForwardLayer, self).__init__()
         n_inner_units = n_units * 4
         self.W_1 = LinearSent(n_units, n_inner_units)
-        self.W_2 = LinearSent(n_inner_units, n_units)
         self.act = nn.ReLU()
+        self.W_2 = LinearSent(n_inner_units, n_units)
 
     def forward(self, e):
         e = self.W_1(e)
@@ -168,63 +174,74 @@ class FeedForwardLayer(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, n_units, h=8, dropout=0.1):
+    def __init__(self, n_units, h=8, dropout=0.2, layer_norm=True, attn_dropout=False):
         super(EncoderLayer, self).__init__()
-        self.self_attention = MultiHeadAttention(n_units, h)
+        self.layer_norm = layer_norm
+        self.self_attention = MultiHeadAttention(n_units, h, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
-        self.ln_1 = LayerNormSent(n_units, eps=1e-6)
-
+        if layer_norm:
+            self.ln_1 = LayerNormSent(n_units, eps=1e-3)
         self.feed_forward = FeedForwardLayer(n_units)
         self.dropout2 = nn.Dropout(dropout)
-        self.ln_2 = LayerNormSent(n_units, eps=1e-6)
+        if layer_norm:
+            self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, xx_mask):
         sub = self.self_attention(e, mask=xx_mask)
         e = e + self.dropout1(sub)
-        e = self.ln_1(e)
+        if self.layer_norm:
+            e = self.ln_1(e)
 
         sub = self.feed_forward(e)
         e = e + self.dropout2(sub)
-        e = self.ln_2(e)
+        if self.layer_norm:
+            e = self.ln_2(e)
         return e
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, n_units, h=8, dropout=0.1):
+    def __init__(self, n_units, h=8, dropout=0.2, layer_norm=True, attn_dropout=False):
         super(DecoderLayer, self).__init__()
-        self.self_attention = MultiHeadAttention(n_units, h)
+        self.layer_norm = layer_norm
+        self.self_attention = MultiHeadAttention(n_units, h, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
-        self.ln_1 = LayerNormSent(n_units, eps=1e-6)
+        if layer_norm:
+            self.ln_1 = LayerNormSent(n_units, eps=1e-3)
 
-        self.source_attention = MultiHeadAttention(n_units, h)
+        self.source_attention = MultiHeadAttention(n_units, h, attn_dropout, dropout)
         self.dropout2 = nn.Dropout(dropout)
-        self.ln_2 = LayerNormSent(n_units, eps=1e-6)
+        if layer_norm:
+            self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
         self.feed_forward = FeedForwardLayer(n_units)
         self.dropout3 = nn.Dropout(dropout)
-        self.ln_3 = LayerNormSent(n_units, eps=1e-6)
+        if layer_norm:
+            self.ln_3 = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, s, xy_mask, yy_mask):
         sub = self.self_attention(e, mask=yy_mask)
         e = e + self.dropout1(sub)
-        e = self.ln_1(e)
+        if self.layer_norm:
+            e = self.ln_1(e)
 
         sub = self.source_attention(e, s, mask=xy_mask)
         e = e + self.dropout2(sub)
-        e = self.ln_2(e)
+        if self.layer_norm:
+            e = self.ln_2(e)
 
         sub = self.feed_forward(e)
         e = e + self.dropout3(sub)
-        e = self.ln_3(e)
+        if self.layer_norm:
+            e = self.ln_3(e)
         return e
 
 
 class Encoder(nn.Module):
-    def __init__(self, n_layers, n_units, h=8, dropout=0.1):
+    def __init__(self, n_layers, n_units, h=8, dropout=0.2, layer_norm=True, attn_dropout=False):
         super(Encoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(1, n_layers + 1):
-            layer = EncoderLayer(n_units, h, dropout)
+            layer = EncoderLayer(n_units, h, dropout, layer_norm, attn_dropout)
             self.layers.append(layer)
 
     def forward(self, e, xx_mask):
@@ -234,11 +251,11 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, n_layers, n_units, h=8, dropout=0.1):
+    def __init__(self, n_layers, n_units, h=8, dropout=0.2, layer_norm=True, attn_dropout=False):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(1, n_layers + 1):
-            layer = DecoderLayer(n_units, h, dropout)
+            layer = DecoderLayer(n_units, h, dropout, layer_norm, attn_dropout)
             self.layers.append(layer)
 
     def forward(self, e, source, xy_mask, yy_mask):
@@ -249,26 +266,29 @@ class Decoder(nn.Module):
 
 class Transformer(nn.Module):
     def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, h=8, dropout=0.1, max_length=500,
-                 use_label_smoothing=False, embed_position=False):
+                 label_smoothing=False, embed_position=False, layer_norm=True, tied=True, attn_dropout=False):
         super(Transformer, self).__init__()
         self.embed_x = nn.Embedding(n_source_vocab, n_units, padding_idx=0)
         self.embed_y = nn.Embedding(n_target_vocab, n_units, padding_idx=0)
-
         self.embed_x.weight.data.uniform_(-3. / n_source_vocab, 3. / n_source_vocab)
         self.embed_y.weight.data.uniform_(-3. / n_target_vocab, 3. / n_target_vocab)
 
         self.embed_dropout = nn.Dropout(dropout)
-        self.encoder = Encoder(n_layers, n_units, h, dropout)
-        self.decoder = Decoder(n_layers, n_units, h, dropout)
+        self.encoder = Encoder(n_layers, n_units, h, dropout, layer_norm, attn_dropout)
+        self.decoder = Decoder(n_layers, n_units, h, dropout, layer_norm, attn_dropout)
+
         if embed_position:
             self.embed_pos = nn.Embedding(max_length, n_units, padding_idx=0)
+
+        self.affine = nn.Linear(n_units, n_target_vocab, bias=False)
+        if tied:
+            self.affine.weight = self.embed_y.weight
 
         self.n_layers = n_layers
         self.n_units = n_units
         self.n_target_vocab = n_target_vocab
-        self.affine = nn.Linear(n_units, n_target_vocab, bias=False)
         self.dropout = dropout
-        self.use_label_smoothing = use_label_smoothing
+        self.label_smoothing = label_smoothing
         self.initialize_position_encoding(max_length, n_units)
         self.scale_emb = self.n_units ** 0.5
 
@@ -320,16 +340,34 @@ class Transformer(nn.Module):
 
     def output_and_loss(self, h_block, t_block):
         batch, units, length = h_block.shape
+
         # Output (all together at once for efficiency)
-        # concat_logit_block = seq_func(self.affine, h_block, reconstruct_shape=False)
-        concat_logit_block = seq_func(self.output, h_block, reconstruct_shape=False)
+        concat_logit_block = seq_func(self.affine, h_block, reconstruct_shape=False)
         rebatch, _ = concat_logit_block.shape
 
         # Make target
         concat_t_block = t_block.view(rebatch)
-        ignore_mask = (concat_t_block >= 1)
-        loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
-        # accuracy = F.accuracy(concat_logit_block, concat_t_block, ignore_label=0)
+        ignore_mask = (concat_t_block >= 1).float()
+        n_token = torch.sum(ignore_mask)
+        normalizer = n_token
+
+        if self.label_smoothing:
+            log_prob = F.log_softmax(concat_logit_block, dim=1)
+            broad_ignore_mask = ignore_mask[:, None].expand_as(concat_logit_block)
+            pre_loss = ignore_mask * log_prob[np.arange(rebatch), concat_t_block]
+            loss = -1. * torch.sum(pre_loss) / normalizer
+        else:
+            loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
+
+        # accuracy = F.accuracy(concat_logit_block, concat_t_block, ignore_label=-1)
+        perp = torch.exp(loss.data)
+
+        if self.label_smoothing:
+            pre_loss = loss
+            ls_loss = -1. / self.n_target_vocab * broad_ignore_mask * log_prob
+            ls_loss = torch.sum(ls_loss) / normalizer
+            loss = 0.9 * pre_loss + 0.1 * ls_loss
+
         return loss
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False):

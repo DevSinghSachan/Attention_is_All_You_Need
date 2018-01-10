@@ -166,11 +166,15 @@ def main():
                             h=config.head,
                             dropout=config.dropout,
                             max_length=500,
-                            use_label_smoothing=config.use_label_smoothing,
-                            embed_position=config.embed_position)
+                            label_smoothing=config.label_smoothing,
+                            embed_position=config.embed_position,
+                            layer_norm=True,
+                            tied=config.tied)
 
     if config.gpu >= 0:
         model.cuda(config.gpu)
+
+    print(model)
 
     # Setup Optimizer
     # optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
