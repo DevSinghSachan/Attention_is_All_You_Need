@@ -220,19 +220,8 @@ def main():
         for test_batch in test_iter:
             model.eval()
             in_arrays = seq2seq_pad_concat_convert(test_batch, -1)
-
-            # Forward the test data
             loss_test, acc, perp = model(*in_arrays)
-
-            # Calculate the accuracy
             test_losses.append(loss_test.data.cpu().numpy())
-
-            if test_iter.is_new_epoch:
-                test_iter.epoch = 0
-                test_iter.current_position = 0
-                test_iter.is_new_epoch = False
-                test_iter._pushed_position = None
-                break
 
         print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
         CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize//4)()
