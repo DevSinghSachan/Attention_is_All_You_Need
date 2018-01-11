@@ -19,9 +19,6 @@ import utils
 import general_utils
 from config import get_args
 
-if torch.cuda.is_available():
-    torch.cuda.set_device(0)
-
 
 class CalculateBleu(object):
     def __init__(self, model, test_data, key, batch=50, max_length=50, beam_size=1):

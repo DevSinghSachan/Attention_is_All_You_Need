@@ -478,7 +478,7 @@ class Transformer(nn.Module):
             new_beam_scores = torch.zeros(beam).type(utils.FLOAT_TYPE)
             for j in range(beam):
                 k = new_beam_index[j]
-                new_beam_scores[j] = beam_scores[k] + top_scores[j]
+                new_beam_scores[j] = top_scores[j]
                 new_result[j] = result[k] + [new_ids[j]]
 
             result = deepcopy(new_result)
