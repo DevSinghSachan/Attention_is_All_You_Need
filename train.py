@@ -8,6 +8,7 @@ import six
 import random
 from time import time
 import torch
+from tqdm import tqdm
 
 import preprocess
 import evaluator
@@ -36,7 +37,7 @@ class CalculateBleu(object):
         self.model.eval()
         references = []
         hypotheses = []
-        for i in range(0, len(self.test_data), self.batch):
+        for i in tqdm(range(0, len(self.test_data), self.batch)):
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
             if self.beam_size > 1:
