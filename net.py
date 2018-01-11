@@ -402,7 +402,8 @@ class Transformer(nn.Module):
     def translate(self, x_block, max_length=50, beam=5):
         if beam:
             obj = search_strategy.BeamSearch(beam_size=beam, max_len=max_length)
-            obj.generate_output(self, x_block)
+            id_list, score = obj.generate_output(self, x_block)
+            return id_list
             # return self.translate_beam(x_block, max_length, beam)
 
         # TODO: efficient inference by re-using result
