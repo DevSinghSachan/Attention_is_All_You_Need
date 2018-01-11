@@ -106,7 +106,7 @@ def main():
     prog = general_utils.Progbar(target=iter_per_epoch)
     time_s = time()
 
-    CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+    # CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 
     for epoch in range(args.epoch):
         random.shuffle(train_data)
