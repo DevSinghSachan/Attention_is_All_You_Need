@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 import random
 
+
 def get_args():
     parser = ArgumentParser(description='Implementation of "Attention is All You Need" in Pytorch')
 
@@ -25,6 +26,8 @@ def get_args():
                         help='tie target word embedding and output softmax layer')
     parser.set_defaults(tied=False)
 
+    parser.add_argument('--beam', dest='beam_size', type=int, default=1,
+                        help='Beam size during translation')
     parser.add_argument('--input', '-i', type=str, default='./data',
                         help='Input directory')
     parser.add_argument('--source', '-s', type=str,

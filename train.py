@@ -23,13 +23,14 @@ if torch.cuda.is_available():
 
 
 class CalculateBleu(object):
-    def __init__(self, model, test_data, key, batch=50, max_length=50):
+    def __init__(self, model, test_data, key, batch=50, max_length=50, beam_size=1):
         self.model = model
         self.test_data = test_data
         self.key = key
         self.batch = batch
         self.device = -1
         self.max_length = max_length
+        self.beam_size = beam_size
 
     def __call__(self):
         self.model.eval()
@@ -38,7 +39,11 @@ class CalculateBleu(object):
         for i in range(0, len(self.test_data), self.batch):
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
-            ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
+            if self.beam_size > 1:
+                ys = self.model.translate(sources, self.max_length, beam=2)
+            else:
+                ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
+
             hypotheses.extend(ys)
 
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
@@ -105,6 +110,8 @@ def main():
     prog = general_utils.Progbar(target=iter_per_epoch)
     time_s = time()
 
+    # CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=2)()
+
     for epoch in range(args.epoch):
         random.shuffle(train_data)
         train_iter = data.iterator.pool(train_data, args.batchsize,
@@ -143,7 +150,11 @@ def main():
             test_losses.append(loss_test.data.cpu().numpy())
 
         print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
-        CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize//4)()
+
+        if args.beam_size > 1:
+            CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+        else:
+            CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
 # encoding: utf-8
 
+from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -337,7 +338,8 @@ class Transformer(nn.Module):
         return history_mask
 
     def output(self, h):
-        return F.linear(h, self.embed_y.weight)
+        # return F.linear(h, self.embed_y.weight)
+        return self.affine(h)
 
     def output_and_loss(self, h_block, t_block):
         batch, units, length = h_block.shape
@@ -414,7 +416,7 @@ class Transformer(nn.Module):
 
         result = []
         for i in range(max_length):
-            log_prob_tail = self(x_block, y_block, y_block, get_prediction=True)
+            log_prob_tail = self(x_block, y_block, y_out_block=None, get_prediction=True)
             _, ys = torch.max(log_prob_tail, dim=1)
             y_block = torch.cat([y_block.detach(), ys[:, None]], dim=1)
             ys = ys.data.cpu().numpy()
@@ -439,69 +441,65 @@ class Transformer(nn.Module):
     def translate_beam(self, x_block, max_length=50, beam=5):
         # TODO: efficient inference by re-using result
         # TODO: batch processing
-        with chainer.no_backprop_mode():
-            with chainer.using_config('train', False):
-                x_block = source_pad_concat_convert(
-                    x_block, device=None)
-                batch, x_length = x_block.shape
-                assert batch == 1, 'Batch processing is not supported now.'
-                y_block = self.xp.full(
-                    (batch, 1), 2, dtype=x_block.dtype)  # bos
-                eos_flags = self.xp.zeros(
-                    (batch * beam,), dtype=x_block.dtype)
-                sum_scores = self.xp.zeros(1, 'f')
-                result = [[2]] * batch * beam
-                for i in range(max_length):
-                    log_prob_tail = self(x_block, y_block, y_block,
-                                         get_prediction=True)
+        x_block = utils.source_pad_concat_convert(x_block, device=None)
+        batch, x_length = x_block.shape
+        assert batch == 1, 'Batch processing is not supported now.'
 
-                    ys_list, ws_list = get_topk(
-                        log_prob_tail.data, beam, axis=1)
-                    ys_concat = self.xp.concatenate(ys_list, axis=0)
-                    sum_ws_list = [ws + sum_scores for ws in ws_list]
-                    sum_ws_concat = self.xp.concatenate(sum_ws_list, axis=0)
+        y_block = np.full((batch, 1), 3, dtype=x_block.dtype)  # bos
 
-                    # Get top-k from total candidates
-                    idx_list, sum_w_list = get_topk(sum_ws_concat, beam, axis=0)
-                    # idx_concat = self.xp.stack(idx_list, axis=0)
-                    idx_concat = self.xp.concatenate([self.xp.expand_dims(x, axis=0) for x in idx_list], axis=0)
-                    ys = ys_concat[idx_concat]
-                    # sum_scores = self.xp.stack(sum_w_list, axis=0)
-                    sum_scores = self.xp.concatenate([self.xp.expand_dims(x, axis=0) for x in sum_w_list], axis=0)
+        eos_flags = np.zeros((batch * beam,), dtype=x_block.dtype)
+        beam_scores = torch.zeros(1)
+        result = [[3]] * batch * beam
 
-                    if i != 0:
-                        old_idx_list = (idx_concat % beam).tolist()
-                    else:
-                        old_idx_list = [0] * beam
+        x_block, y_block = Variable(torch.LongTensor(x_block)), Variable(torch.LongTensor(y_block))
+        if torch.cuda.is_available():
+            x_block, y_block = x_block.cuda(), y_block.cuda()
 
-                    result = [result[idx] + [y]
-                              for idx, y in zip(old_idx_list, ys.tolist())]
+        for i in range(max_length):
+            log_prob_tail = self(x_block, y_block, y_out_block=None, get_prediction=True)
+            log_prob_tail = F.log_softmax(log_prob_tail, dim=1)
 
-                    y_block = self.xp.array(result).astype('i')
-                    if x_block.shape[0] != y_block.shape[0]:
-                        x_block = self.xp.broadcast_to(
-                            x_block, (y_block.shape[0], x_block.shape[1]))
-                    eos_flags += (ys == 0)
-                    if self.xp.all(eos_flags):
-                        break
+            # Get the top-k scores and word-ids
+            scores_array, ids_array = torch.topk(log_prob_tail.data, k=beam, dim=1)
 
-        outs = [[wi for wi in sent if wi not in [2, 0]] for sent in result]
-        outs = [sent if sent else [0] for sent in outs]
-        return outs
+            # Compute the cumulative running sum of beam scores
+            if beam_scores.shape[0] != scores_array.shape[0]:
+                beam_scores = beam_scores.expand(scores_array.shape[0], beam_scores.shape[1])
 
+            cumulative_scores = beam_scores + scores_array
 
-def get_topk(x, k=5, axis=1):
-    ids_list = []
-    scores_list = []
-    xp = cuda.get_array_module(x)
-    for i in range(k):
-        ids = xp.argmax(x, axis=axis).astype('i')
-        if axis == 0:
-            scores = x[ids]
-            x[ids] = - float('inf')
-        else:
-            scores = x[xp.arange(ids.shape[0]), ids]
-            x[xp.arange(ids.shape[0]), ids] = - float('inf')
-        ids_list.append(ids)
-        scores_list.append(scores)
-    return ids_list, scores_list
+            # Reshaping current cumulative scores in 1-column
+            scores_col = cumulative_scores.view(cumulative_scores.nelement())
+            ids_col = ids_array.view(ids_array.nelement())
+
+            # Get top-k from total candidates at every step
+            top_scores, top_idxs = torch.topk(scores_col, beam, dim=0)
+            new_ids = ids_col[top_idxs]
+            new_beam_index = top_idxs / beam
+
+            # Updating the beam_score from the top score
+            new_result = [[]] * batch * beam
+            new_beam_scores = torch.zeros(beam)
+            for j in range(beam):
+                k = new_beam_index[j]
+                new_beam_scores[j] = beam_scores[k] + top_scores[j]
+                new_result[j] = result[k] + [new_ids[j]]
+
+            result = deepcopy(new_result)
+            beam_scores = deepcopy(new_beam_scores)
+
+            y_block = Variable(torch.LongTensor(result))
+
+            if x_block.shape[0] != y_block.shape[0]:
+                x_block = x_block.expand(y_block.shape[0], x_block.shape[1])
+
+            if torch.cuda.is_available():
+                y_block = y_block.cuda()
+
+            eos_flags += (new_ids == 1)
+            if np.all(eos_flags):
+                break
+
+        outs = [[wi for wi in sent if wi not in [3, 1]] for sent in result]
+        outs = [sent if sent else [1] for sent in outs]
+        return outs[0]

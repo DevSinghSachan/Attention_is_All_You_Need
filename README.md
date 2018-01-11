@@ -8,5 +8,4 @@ BEST BLEU: 31.74 (1-layer model, B: 100, no Layer Norm)
 : 32.26 (1-layer model, B: 100, Layer Norm)
 
 To be done:
-2. Comparison with BLEU Score
 5. Beam Search
