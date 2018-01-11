@@ -43,9 +43,7 @@ class CalculateBleu(object):
                 ys = self.model.translate(sources, self.max_length, beam=2)
             else:
                 ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
-
             hypotheses.extend(ys)
-
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
         print('BLEU:', bleu.score_str())
 
@@ -110,7 +108,7 @@ def main():
     prog = general_utils.Progbar(target=iter_per_epoch)
     time_s = time()
 
-    # CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=2)()
+    CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 
     for epoch in range(args.epoch):
         random.shuffle(train_data)

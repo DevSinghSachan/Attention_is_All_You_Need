@@ -446,9 +446,9 @@ class Transformer(nn.Module):
         assert batch == 1, 'Batch processing is not supported now.'
 
         y_block = np.full((batch, 1), 3, dtype=x_block.dtype)  # bos
-
         eos_flags = np.zeros((batch * beam,), dtype=x_block.dtype)
-        beam_scores = torch.zeros(1)
+        # eos_flags = torch.zeros((batch * beam)).type(torch.IntTensor)
+        beam_scores = torch.zeros(1).type(utils.FLOAT_TYPE)
         result = [[3]] * batch * beam
 
         x_block, y_block = Variable(torch.LongTensor(x_block)), Variable(torch.LongTensor(y_block))
@@ -479,7 +479,7 @@ class Transformer(nn.Module):
 
             # Updating the beam_score from the top score
             new_result = [[]] * batch * beam
-            new_beam_scores = torch.zeros(beam)
+            new_beam_scores = torch.zeros(beam).type(utils.FLOAT_TYPE)
             for j in range(beam):
                 k = new_beam_index[j]
                 new_beam_scores[j] = beam_scores[k] + top_scores[j]
@@ -498,6 +498,7 @@ class Transformer(nn.Module):
 
             eos_flags += (new_ids == 1)
             if np.all(eos_flags):
+            # if torch.nonzero(eos_flags):
                 break
 
         outs = [[wi for wi in sent if wi not in [3, 1]] for sent in result]

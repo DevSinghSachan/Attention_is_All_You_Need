@@ -6,6 +6,7 @@ python train.py -s train-big.ja -t train-big.en -g 0
 BEST BLEU: 31.74 (1-layer model, B: 100, no Layer Norm)
 : 32.09 (2-layer model, B: 80, no Layer Norm)
 : 32.26 (1-layer model, B: 100, Layer Norm)
+: 31.63 (1-layer model, LayerNorm, data-bucketing, B: 100)
 
 To be done:
 5. Beam Search

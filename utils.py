@@ -4,6 +4,13 @@ from torch.autograd import Variable
 from chainer.dataset import convert
 
 
+if torch.cuda.is_available():
+    FLOAT_TYPE = torch.cuda.FloatTensor
+else:
+    FLOAT_TYPE = torch.FloatTensor
+
+
+
 class Accuracy(object):
     def __init__(self, ignore_index=None):
         self.ignore_index = ignore_index
