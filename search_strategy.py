@@ -57,8 +57,6 @@ class BeamSearch(object):
         x_block = utils.source_pad_concat_convert(x_block, device=None)
         batch, x_length = x_block.shape
         assert batch == 1, 'Batch processing is not supported now.'
-
-        # y_block = np.full((batch, 1), 3, dtype=x_block.dtype)  # bos
         x_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE))
 
         active_hyp = [self.Hypothesis(0, [])]
@@ -70,6 +68,7 @@ class BeamSearch(object):
             for hyp in active_hyp:
                 if length > 0:  # don't feed in the initial start-of-sentence token
                     if hyp.id_list[-1] == 1:
+                        hyp.id_list = hyp.id_list[:-1]
                         completed_hyp.append(hyp)
                         continue
 
@@ -77,9 +76,6 @@ class BeamSearch(object):
 
                 log_prob_tail = model(x_block, y_block, y_out_block=None, get_prediction=True)
                 score = F.log_softmax(log_prob_tail, dim=1).data.cpu().numpy()[0]
-
-                # score = dy.log_softmax(decoder.get_scores(dec_state)).npvalue()
-
                 top_ids = np.argpartition(score, max(-len(score), -self.beam_size))[-self.beam_size:]
 
                 for cur_id in top_ids.tolist():
