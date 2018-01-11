@@ -102,3 +102,4 @@ def source_pad_concat_convert(x_seqs, device, eos_id=1, bos_id=3):
 
     x_block = np.pad(x_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
     return x_block
+

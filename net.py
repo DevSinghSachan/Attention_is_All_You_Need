@@ -8,6 +8,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
 import utils
+import search_strategy
 
 cudnn.benchmark = True
 
@@ -400,7 +401,9 @@ class Transformer(nn.Module):
 
     def translate(self, x_block, max_length=50, beam=5):
         if beam:
-            return self.translate_beam(x_block, max_length, beam)
+            obj = search_strategy.BeamSearch(beam_size=beam, max_len=max_length)
+            obj.generate_output(self, x_block)
+            # return self.translate_beam(x_block, max_length, beam)
 
         # TODO: efficient inference by re-using result
         x_block = utils.source_pad_concat_convert(x_block, device=None)
@@ -435,6 +438,7 @@ class Transformer(nn.Module):
             outs.append(y)
         return outs
 
+    # Some error in this function
     def translate_beam(self, x_block, max_length=50, beam=5):
         # TODO: efficient inference by re-using result
         # TODO: batch processing
