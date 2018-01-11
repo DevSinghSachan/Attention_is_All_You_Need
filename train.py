@@ -41,7 +41,7 @@ class CalculateBleu(object):
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
             if self.beam_size > 1:
-                ys = self.model.translate(sources, self.max_length, beam=2)
+                ys = [self.model.translate(sources, self.max_length, beam=2)]
             else:
                 ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
             hypotheses.extend(ys)
@@ -109,7 +109,7 @@ def main():
     prog = general_utils.Progbar(target=iter_per_epoch)
     time_s = time()
 
-    CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+    # CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 
     for epoch in range(args.epoch):
         random.shuffle(train_data)
