@@ -453,7 +453,7 @@ class Transformer(nn.Module):
 
         for i in range(max_length):
             log_prob_tail = self(x_block, y_block, y_out_block=None, get_prediction=True)
-            log_prob_tail = F.log_softmax(log_prob_tail, dim=1)
+            # log_prob_tail = F.log_softmax(log_prob_tail, dim=1)
 
             # Get the top-k scores and word-ids
             scores_array, ids_array = torch.topk(log_prob_tail.data, k=beam, dim=1)
@@ -485,7 +485,6 @@ class Transformer(nn.Module):
             beam_scores = deepcopy(new_beam_scores)
 
             y_block = Variable(torch.LongTensor(result)).type(utils.LONG_TYPE)
-
             if x_block.shape[0] != y_block.shape[0]:
                 x_block = x_block.expand(y_block.shape[0], x_block.shape[1])
 
