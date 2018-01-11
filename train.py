@@ -117,7 +117,7 @@ def main():
                                         key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
                                         random_shuffler=data.iterator.RandomShuffler())
 
-        for num_steps, train_batch in enumerate(train_iter):
+        for num_steps, train_batch in tqdm(enumerate(train_iter)):
             model.train()
             optimizer.zero_grad()
 
