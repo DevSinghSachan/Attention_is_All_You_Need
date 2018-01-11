@@ -29,7 +29,7 @@ class BeamSearch(object):
     def __init__(self, beam_size=5, max_len=50):
         self.beam_size = beam_size
         self.max_len = max_len
-        self.len_norm = PolynomialNormalization()
+        self.len_norm = PolynomialNormalization(apply_during_search=True)
         self.entrs = []
 
     class Hypothesis:
