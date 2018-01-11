@@ -332,9 +332,7 @@ class Transformer(nn.Module):
         history_mask = (arange[None,] <= arange[:, None])[None,]
         history_mask = np.broadcast_to(history_mask, (batch, length, length))
         history_mask = history_mask.astype(np.int32)
-        history_mask = Variable(torch.ByteTensor(history_mask))
-        if torch.cuda.is_available():
-            history_mask = history_mask.cuda()
+        history_mask = Variable(torch.ByteTensor(history_mask).type(utils.BYTE_TYPE))
         return history_mask
 
     def output(self, h):
@@ -410,9 +408,8 @@ class Transformer(nn.Module):
         y_block = np.full((batch, 1), 3, dtype=x_block.dtype)  # bos
         eos_flags = np.zeros((batch,), dtype=x_block.dtype)
 
-        x_block, y_block = Variable(torch.LongTensor(x_block)), Variable(torch.LongTensor(y_block))
-        if torch.cuda.is_available():
-            x_block, y_block = x_block.cuda(), y_block.cuda()
+        x_block, y_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE)), \
+                           Variable(torch.LongTensor(y_block).type(utils.LONG_TYPE))
 
         result = []
         for i in range(max_length):
@@ -451,9 +448,8 @@ class Transformer(nn.Module):
         beam_scores = torch.zeros(1).type(utils.FLOAT_TYPE)
         result = [[3]] * batch * beam
 
-        x_block, y_block = Variable(torch.LongTensor(x_block)), Variable(torch.LongTensor(y_block))
-        if torch.cuda.is_available():
-            x_block, y_block = x_block.cuda(), y_block.cuda()
+        x_block, y_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE)), \
+                           Variable(torch.LongTensor(y_block).type(utils.LONG_TYPE))
 
         for i in range(max_length):
             log_prob_tail = self(x_block, y_block, y_out_block=None, get_prediction=True)
@@ -488,13 +484,10 @@ class Transformer(nn.Module):
             result = deepcopy(new_result)
             beam_scores = deepcopy(new_beam_scores)
 
-            y_block = Variable(torch.LongTensor(result))
+            y_block = Variable(torch.LongTensor(result)).type(utils.LONG_TYPE)
 
             if x_block.shape[0] != y_block.shape[0]:
                 x_block = x_block.expand(y_block.shape[0], x_block.shape[1])
-
-            if torch.cuda.is_available():
-                y_block = y_block.cuda()
 
             eos_flags += (new_ids == 1)
             if np.all(eos_flags):

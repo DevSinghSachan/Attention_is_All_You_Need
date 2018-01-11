@@ -3,12 +3,16 @@ import torch
 from torch.autograd import Variable
 from chainer.dataset import convert
 
-
 if torch.cuda.is_available():
     FLOAT_TYPE = torch.cuda.FloatTensor
+    INT_TYPE = torch.cuda.IntTensor
+    LONG_TYPE = torch.cuda.LongTensor
+    BYTE_TYPE = torch.cuda.ByteTensor
 else:
     FLOAT_TYPE = torch.FloatTensor
-
+    INT_TYPE = torch.IntTensor
+    LONG_TYPE = torch.LongTensor
+    BYTE_TYPE = torch.ByteTensor
 
 
 class Accuracy(object):
@@ -81,12 +85,9 @@ def seq2seq_pad_concat_convert(xy_batch, device, eos_id=1, bos_id=3):
     y_in_block = np.pad(y_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
 
     # Converting from numpy format to Torch Tensor
-    x_block, y_in_block, y_out_block = Variable(torch.LongTensor(x_block)), \
-                                       Variable(torch.LongTensor(y_in_block)), \
-                                       Variable(torch.LongTensor(y_out_block))
-
-    if torch.cuda.is_available():
-        x_block, y_in_block, y_out_block = x_block.cuda(), y_in_block.cuda(), y_out_block.cuda()
+    x_block, y_in_block, y_out_block = Variable(torch.LongTensor(x_block).type(LONG_TYPE)), \
+                                       Variable(torch.LongTensor(y_in_block).type(LONG_TYPE)), \
+                                       Variable(torch.LongTensor(y_out_block).type(LONG_TYPE))
 
     return x_block, y_in_block, y_out_block
 

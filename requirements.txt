@@ -1,3 +1,4 @@
+chainer
 progressbar2
 torch
 numpy
