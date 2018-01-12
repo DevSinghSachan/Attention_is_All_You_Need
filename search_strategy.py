@@ -16,6 +16,9 @@ class PolynomialNormalization(object):
         self.m = m
         self.apply_during_search = apply_during_search
 
+    def lp(self, len):
+        return pow(5 + len, self.m) / pow(5 + 1, self.m)
+
     def normalize_completed(self, completed_hyps, src_length=None):
         if not self.apply_during_search:
             for hyp in completed_hyps:
@@ -23,7 +26,7 @@ class PolynomialNormalization(object):
 
     def normalize_partial(self, score_so_far, score_to_add, new_len):
         if self.apply_during_search:
-            return (score_so_far * pow(new_len - 1, self.m) + score_to_add) / pow(new_len, self.m)
+            return (score_so_far * self.lp(new_len - 1) + score_to_add) / self.lp(new_len)
         else:
             return score_so_far + score_to_add
 

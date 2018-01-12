@@ -158,7 +158,7 @@ def main():
                                                                        time()-time_s))
 
         if not args.no_bleu:
-            if args.beam_size > 1:
+            if args.beam_size > 1 and epoch > 30:
                 CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
             else:
                 CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize // 4)()
