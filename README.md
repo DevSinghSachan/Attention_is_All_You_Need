@@ -10,6 +10,7 @@ BEST BLEU:
 - 32.26 (1-layer model, B: 100, Layer Norm)
 - 31.63 (1-layer model, LayerNorm, data-bucketing, B: 100)
 - 32.49 (1-layer model, B: 100, Layer Norm, Beam Seach: 5)
+- 32.81 (1-layer mode, B:128, Layer Norm, Beam: 1)
 
 Experimental:
 - Beam Search

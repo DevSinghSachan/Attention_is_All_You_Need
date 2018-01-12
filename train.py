@@ -129,7 +129,7 @@ def main():
             loss.backward()
 
             if args.use_fixed_lr:
-                norm = torch.nn.utils.clip_grad_norm(model.parameters(), 2.0)
+                norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
             optimizer.step()
 
             if args.debug:

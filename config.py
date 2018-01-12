@@ -49,7 +49,7 @@ def get_args():
                         help='Vocabulary size of target language')
     parser.add_argument('--no_bleu', dest='-no_bleu', action='store_true',
                         help='Skip BLEU calculation')
-    parser.set_defaults(no_bleu=True)
+    parser.set_defaults(no_bleu=False)
 
     parser.add_argument('--label_smoothing', type=float, default=0.0,
                         help='Use label smoothing for cross-entropy')
