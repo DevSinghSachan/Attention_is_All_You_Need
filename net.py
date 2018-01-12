@@ -64,8 +64,9 @@ def seq_func(func, x, reconstruct_shape=True):
     e = func(e)
     if not reconstruct_shape:
         return e
-    e = torch.transpose(e.view((batch, length, units)), 1, 2).contiguous()
-    assert (e.shape == (batch, units, length))
+    out_units = e.shape[1]
+    e = torch.transpose(e.view((batch, length, out_units)), 1, 2).contiguous()
+    assert (e.shape == (batch, out_units, length))
     return e
 
 
@@ -90,9 +91,11 @@ class LinearSent(nn.Module):
         self.output_dim = output_dim
 
     def forward(self, x):
-        output = self.L.weight.matmul(x)
-        if self.L.bias is not None:
-            output += self.L.bias.unsqueeze(-1)
+        # output = self.L.weight.matmul(x)
+        # if self.L.bias is not None:
+        #    output += self.L.bias.unsqueeze(-1)
+
+        output = seq_func(self.L, x)
         return output
 
 
@@ -111,6 +114,7 @@ class MultiHeadAttention(nn.Module):
         if attn_dropout:
             self.dropout = nn.Dropout(dropout)
 
+    @profile
     def forward(self, x, z=None, mask=None):
         h = self.h
         Q = self.W_Q(x)
@@ -189,6 +193,7 @@ class EncoderLayer(nn.Module):
         if layer_norm:
             self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
+    @profile
     def forward(self, e, xx_mask):
         sub = self.self_attention(e, mask=xx_mask)
         e = e + self.dropout1(sub)
@@ -221,6 +226,7 @@ class DecoderLayer(nn.Module):
         if layer_norm:
             self.ln_3 = LayerNormSent(n_units, eps=1e-3)
 
+    @profile
     def forward(self, e, s, xy_mask, yy_mask):
         sub = self.self_attention(e, mask=yy_mask)
         e = e + self.dropout1(sub)
