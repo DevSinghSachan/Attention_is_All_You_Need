@@ -86,7 +86,7 @@ def main():
                             min(len(source_ids), len(source_words)),
                             min(len(target_ids), len(target_words)),
                             args.unit,
-                            h=args.head,
+                            multi_heads=args.multi_heads,
                             dropout=args.dropout,
                             max_length=500,
                             label_smoothing=args.label_smoothing,
@@ -98,7 +98,10 @@ def main():
         model.cuda(args.gpu)
     print(model)
 
-    optimizer = optim.TransformerAdamTrainer(model)
+    if not args.use_fixed_lr:
+        optimizer = optim.TransformerAdamTrainer(model)
+    else:
+        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
@@ -124,7 +127,9 @@ def main():
             loss, acc_stat, perp = model(*in_arrays)
 
             loss.backward()
-            # norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
+
+            if args.use_fixed_lr:
+                norm = torch.nn.utils.clip_grad_norm(model.parameters(), 2.0)
             optimizer.step()
 
             if args.debug:
@@ -152,10 +157,11 @@ def main():
         print('val_loss:{:.04f} \t Acc:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), accuracy,
                                                                        time()-time_s))
 
-        if args.beam_size > 1:
-            CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
-        else:
-            CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize // 4)()
+        if not args.no_bleu:
+            if args.beam_size > 1:
+                CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+            else:
+                CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
 
 if __name__ == '__main__':

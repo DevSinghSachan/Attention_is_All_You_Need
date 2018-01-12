@@ -94,7 +94,6 @@ class LinearSent(nn.Module):
         # output = self.L.weight.matmul(x)
         # if self.L.bias is not None:
         #    output += self.L.bias.unsqueeze(-1)
-
         output = seq_func(self.L, x)
         return output
 
@@ -114,7 +113,6 @@ class MultiHeadAttention(nn.Module):
         if attn_dropout:
             self.dropout = nn.Dropout(dropout)
 
-    #@profile
     def forward(self, x, z=None, mask=None):
         h = self.h
         Q = self.W_Q(x)
@@ -193,7 +191,6 @@ class EncoderLayer(nn.Module):
         if layer_norm:
             self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
-    #@profile
     def forward(self, e, xx_mask):
         sub = self.self_attention(e, mask=xx_mask)
         e = e + self.dropout1(sub)
@@ -226,7 +223,6 @@ class DecoderLayer(nn.Module):
         if layer_norm:
             self.ln_3 = LayerNormSent(n_units, eps=1e-3)
 
-    #@profile
     def forward(self, e, s, xy_mask, yy_mask):
         sub = self.self_attention(e, mask=yy_mask)
         e = e + self.dropout1(sub)
@@ -274,7 +270,7 @@ class Decoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, h=8, dropout=0.1, max_length=500,
+    def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, multi_heads=8, dropout=0.1, max_length=500,
                  label_smoothing=False, embed_position=False, layer_norm=True, tied=True, attn_dropout=False):
         super(Transformer, self).__init__()
         self.embed_x = nn.Embedding(n_source_vocab, n_units, padding_idx=0)
@@ -283,8 +279,8 @@ class Transformer(nn.Module):
         self.embed_y.weight.data.uniform_(-3. / n_target_vocab, 3. / n_target_vocab)
 
         self.embed_dropout = nn.Dropout(dropout)
-        self.encoder = Encoder(n_layers, n_units, h, dropout, layer_norm, attn_dropout)
-        self.decoder = Decoder(n_layers, n_units, h, dropout, layer_norm, attn_dropout)
+        self.encoder = Encoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout)
+        self.decoder = Decoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout)
 
         if embed_position:
             self.embed_pos = nn.Embedding(max_length, n_units, padding_idx=0)
@@ -445,7 +441,7 @@ class Transformer(nn.Module):
             outs.append(y)
         return outs
 
-    # Some error in this function
+    # Maybe, some error in this function
     def translate_beam(self, x_block, max_length=50, beam=5):
         # TODO: efficient inference by re-using result
         # TODO: batch processing
