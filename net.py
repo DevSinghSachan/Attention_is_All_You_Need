@@ -99,14 +99,14 @@ class LinearSent(nn.Module):
 class MultiHeadAttention(nn.Module):
     """Multi Head Attention Layer for Sentence Blocks. For computational efficiency, dot-product to calculate
     query-key scores is performed in all the heads together."""
-    def __init__(self, n_units, h=8, attn_dropout=False, dropout=0.2):
+    def __init__(self, n_units, multi_heads=8, attn_dropout=False, dropout=0.2):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
         self.W_K = LinearSent(n_units, n_units, bias=False)
         self.W_V = LinearSent(n_units, n_units, bias=False)
         self.finishing_linear_layer = LinearSent(n_units, n_units, bias=False)
-        self.h = h
-        self.scale_score = 1. / (n_units // h) ** 0.5
+        self.h = multi_heads
+        self.scale_score = 1. / (n_units // multi_heads) ** 0.5
         self.attn_dropout = attn_dropout
         if attn_dropout:
             self.dropout = nn.Dropout(dropout)
@@ -177,10 +177,10 @@ class FeedForwardLayer(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, n_units, h=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
         super(EncoderLayer, self).__init__()
         self.layer_norm = layer_norm
-        self.self_attention = MultiHeadAttention(n_units, h, attn_dropout, dropout)
+        self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
         if layer_norm:
             self.ln_1 = LayerNormSent(n_units, eps=1e-3)
@@ -203,15 +203,15 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, n_units, h=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
         super(DecoderLayer, self).__init__()
         self.layer_norm = layer_norm
-        self.self_attention = MultiHeadAttention(n_units, h, attn_dropout, dropout)
+        self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
         if layer_norm:
             self.ln_1 = LayerNormSent(n_units, eps=1e-3)
 
-        self.source_attention = MultiHeadAttention(n_units, h, attn_dropout, dropout)
+        self.source_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout2 = nn.Dropout(dropout)
         if layer_norm:
             self.ln_2 = LayerNormSent(n_units, eps=1e-3)
@@ -240,11 +240,11 @@ class DecoderLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, n_layers, n_units, h=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
         super(Encoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(1, n_layers + 1):
-            layer = EncoderLayer(n_units, h, dropout, layer_norm, attn_dropout)
+            layer = EncoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout)
             self.layers.append(layer)
 
     def forward(self, e, xx_mask):
@@ -254,11 +254,11 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, n_layers, n_units, h=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(1, n_layers + 1):
-            layer = DecoderLayer(n_units, h, dropout, layer_norm, attn_dropout)
+            layer = DecoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout)
             self.layers.append(layer)
 
     def forward(self, e, source, xy_mask, yy_mask):

@@ -4,7 +4,7 @@ import math
 import six
 from collections import defaultdict, Counter
 
-"""This was adapted from XNMT open-source toolkit on 01/08/2018. 
+"""This code was adapted from XNMT open-source toolkit on 01/08/2018. 
 URL: https://github.com/neulab/xnmt/blob/master/xnmt/evaluator.py"""
 
 

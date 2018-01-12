@@ -121,7 +121,7 @@ def main():
             # ---------- One iteration of the training loop ----------
             # train_batch = next(iter(train_iter))
             in_arrays = utils.seq2seq_pad_concat_convert(train_batch, -1)
-            loss, acc, perp = model(*in_arrays)
+            loss, acc_stat, perp = model(*in_arrays)
 
             loss.backward()
             # norm = torch.nn.utils.clip_grad_norm(model.parameters(), 5.0)
@@ -139,13 +139,18 @@ def main():
                                        key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
                                        random_shuffler=data.iterator.RandomShuffler())
 
+        count, total = 0, 0
         for test_batch in test_iter:
             model.eval()
             in_arrays = utils.seq2seq_pad_concat_convert(test_batch, -1)
-            loss_test, acc, perp = model(*in_arrays)
+            loss_test, acc_stat, perp = model(*in_arrays)
+            count += acc_stat[0]
+            total += acc_stat[1]
             test_losses.append(loss_test.data.cpu().numpy())
 
-        print('val_loss:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), time()-time_s))
+        accuracy = (count / total).cpu().tolist()[0]
+        print('val_loss:{:.04f} \t Acc:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), accuracy,
+                                                                       time()-time_s))
 
         if args.beam_size > 1:
             CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()

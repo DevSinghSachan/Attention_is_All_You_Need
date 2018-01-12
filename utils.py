@@ -32,7 +32,8 @@ class Accuracy(object):
             if total == 0:
                 return torch.FloatTensor([0.0])
             else:
-                return count / total
+                # return count / total
+                return count, total
         else:
             _, pred = torch.max(y, dim=1)
             pred = pred.view(t.shape)

@@ -28,7 +28,7 @@ def get_args():
 
     parser.add_argument('--beam', dest='beam_size', type=int, default=1,
                         help='Beam size during translation')
-    parser.add_argument('--input', '-i', type=str, default='./data',
+    parser.add_argument('--input', '-i', type=str, default='./data/ja_en',
                         help='Input directory')
     parser.add_argument('--source', '-s', type=str,
                         default='train.ja',

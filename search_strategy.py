@@ -6,6 +6,9 @@ import torch.nn.functional as F
 import numpy as np
 import utils
 
+"""This code was adapted from XNMT open-source toolkit on 01/10/2018. 
+URL: https://github.com/neulab/xnmt/blob/master/xnmt/search_strategy.py"""
+
 
 class PolynomialNormalization(object):
     """Dividing by the length (raised to some power (default 1))"""
