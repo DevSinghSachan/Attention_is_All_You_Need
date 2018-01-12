@@ -114,7 +114,7 @@ class MultiHeadAttention(nn.Module):
         if attn_dropout:
             self.dropout = nn.Dropout(dropout)
 
-    @profile
+    #@profile
     def forward(self, x, z=None, mask=None):
         h = self.h
         Q = self.W_Q(x)
@@ -193,7 +193,7 @@ class EncoderLayer(nn.Module):
         if layer_norm:
             self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
-    @profile
+    #@profile
     def forward(self, e, xx_mask):
         sub = self.self_attention(e, mask=xx_mask)
         e = e + self.dropout1(sub)
@@ -226,7 +226,7 @@ class DecoderLayer(nn.Module):
         if layer_norm:
             self.ln_3 = LayerNormSent(n_units, eps=1e-3)
 
-    @profile
+    #@profile
     def forward(self, e, s, xy_mask, yy_mask):
         sub = self.self_attention(e, mask=yy_mask)
         e = e + self.dropout1(sub)
