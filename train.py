@@ -83,7 +83,7 @@ def main():
     if not args.use_fixed_lr:
         optimizer = optim.TransformerAdamTrainer(model)
     else:
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=0.0001)
+        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
@@ -111,7 +111,7 @@ def main():
             loss.backward()
 
             if args.use_fixed_lr:
-                norm = torch.nn.utils.clip_grad_norm(model.parameters(), 20)
+                norm = torch.nn.utils.clip_grad_norm(model.parameters(), args.max_norm)
             optimizer.step()
 
             if args.debug:

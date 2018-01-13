@@ -205,13 +205,21 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, pos_attention=False):
         super(DecoderLayer, self).__init__()
         self.layer_norm = layer_norm
+        self.pos_attention = pos_attention
+
         self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
         if layer_norm:
             self.ln_1 = LayerNormSent(n_units, eps=1e-3)
+
+        if pos_attention:
+            self.pos_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
+            self.dropout_pos = nn.Dropout(dropout)
+            if self.layer_norm:
+                self.ln_pos = LayerNormSent(n_units, eps=1e-3)
 
         self.source_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout2 = nn.Dropout(dropout)
@@ -228,6 +236,12 @@ class DecoderLayer(nn.Module):
         e = e + self.dropout1(sub)
         if self.layer_norm:
             e = self.ln_1(e)
+
+        if self.pos_attention:
+            sub = self.pos_attention(e, p, mask=yy_mask)
+            e = e + self.dropout_pos(sub)
+            if self.layer_norm:
+                e = self.ln_pos(e)
 
         sub = self.source_attention(e, s, mask=xy_mask)
         e = e + self.dropout2(sub)
