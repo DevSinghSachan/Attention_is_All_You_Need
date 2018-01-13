@@ -251,7 +251,7 @@ class DecoderLayer(nn.Module):
         if self.pos_attention:
             p = self.position_encoding_block[:, :, :length]
             p = p.expand(batch, units, length)
-            sub = self.pos_attention(e, p, mask=yy_mask)
+            sub = self.pos_attention(p, e, mask=yy_mask)
             e = e + self.dropout_pos(sub)
             if self.layer_norm:
                 e = self.ln_pos(e)
