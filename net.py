@@ -9,6 +9,7 @@ from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
 import utils
 import search_strategy
+import preprocess
 
 cudnn.benchmark = True
 
@@ -99,8 +100,10 @@ class LinearSent(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    """Multi Head Attention Layer for Sentence Blocks. For computational efficiency, dot-product to calculate
-    query-key scores is performed in all the heads together."""
+    """Multi-Head Attention Layer for Sentence Blocks. For computational efficiency, dot-product to calculate
+    query-key scores is performed in all the heads together.
+    Positional Attention is introduced in "Non-Autoregressive Neural Machine Translation" (https://arxiv.org/abs/1711.02281)
+    """
     def __init__(self, n_units, multi_heads=8, attn_dropout=False, dropout=0.2, pos_attn=False):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
@@ -169,12 +172,11 @@ class MultiHeadAttention(nn.Module):
 
 
 class FeedForwardLayer(nn.Module):
-    def __init__(self, n_units):
+    def __init__(self, n_units, n_hidden):
         super(FeedForwardLayer, self).__init__()
-        n_inner_units = n_units * 4
-        self.W_1 = LinearSent(n_units, n_inner_units)
+        self.W_1 = LinearSent(n_units, n_hidden)
         self.act = nn.ReLU()
-        self.W_2 = LinearSent(n_inner_units, n_units)
+        self.W_2 = LinearSent(n_hidden, n_units)
 
     def forward(self, e):
         e = self.W_1(e)
@@ -184,14 +186,15 @@ class FeedForwardLayer(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, n_hidden=2048):
         super(EncoderLayer, self).__init__()
         self.layer_norm = layer_norm
         self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
         if layer_norm:
             self.ln_1 = LayerNormSent(n_units, eps=1e-3)
-        self.feed_forward = FeedForwardLayer(n_units)
+
+        self.feed_forward = FeedForwardLayer(n_units, n_hidden)
         self.dropout2 = nn.Dropout(dropout)
         if layer_norm:
             self.ln_2 = LayerNormSent(n_units, eps=1e-3)
@@ -210,7 +213,8 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, pos_attention=False):
+    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, pos_attention=False,
+                 n_hidden=2048):
         super(DecoderLayer, self).__init__()
         self.layer_norm = layer_norm
         self.pos_attention = pos_attention
@@ -235,7 +239,7 @@ class DecoderLayer(nn.Module):
         if layer_norm:
             self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
-        self.feed_forward = FeedForwardLayer(n_units)
+        self.feed_forward = FeedForwardLayer(n_units, n_hidden)
         self.dropout3 = nn.Dropout(dropout)
         if layer_norm:
             self.ln_3 = LayerNormSent(n_units, eps=1e-3)
@@ -269,11 +273,11 @@ class DecoderLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, n_hidden=2048):
         super(Encoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(1, n_layers + 1):
-            layer = EncoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout)
+            layer = EncoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, n_hidden)
             self.layers.append(layer)
 
     def forward(self, e, xx_mask):
@@ -284,11 +288,11 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False,
-                 pos_attention=False):
+                 pos_attention=False, n_hidden=2048):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(1, n_layers + 1):
-            layer = DecoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention)
+            layer = DecoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention, n_hidden)
             self.layers.append(layer)
 
     def forward(self, e, source, xy_mask, yy_mask):
@@ -308,8 +312,9 @@ class Transformer(nn.Module):
         self.embed_y.weight.data.uniform_(-3. / n_target_vocab, 3. / n_target_vocab)
 
         self.embed_dropout = nn.Dropout(dropout)
-        self.encoder = Encoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout)
-        self.decoder = Decoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention)
+        self.n_hidden = n_units * 4
+        self.encoder = Encoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout, self.n_hidden)
+        self.decoder = Decoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention, self.n_hidden)
 
         if embed_position:
             self.embed_pos = nn.Embedding(max_length, n_units, padding_idx=0)
@@ -442,7 +447,7 @@ class Transformer(nn.Module):
         # TODO: efficient inference by re-using result
         x_block = utils.source_pad_concat_convert(x_block, device=None)
         batch, x_length = x_block.shape
-        y_block = np.full((batch, 1), 3, dtype=x_block.dtype)  # bos
+        y_block = np.full((batch, 1), preprocess.Vocab_Pad.BOS, dtype=x_block.dtype)  # bos
         eos_flags = np.zeros((batch,), dtype=x_block.dtype)
 
         x_block, y_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE)), \
@@ -455,7 +460,7 @@ class Transformer(nn.Module):
             y_block = torch.cat([y_block.detach(), ys[:, None]], dim=1)
             ys = ys.data.cpu().numpy()
             result.append(ys)
-            eos_flags += (ys == 1)
+            eos_flags += (ys == preprocess.Vocab_Pad.EOS)
             if np.all(eos_flags):
                 break
 
@@ -464,7 +469,7 @@ class Transformer(nn.Module):
         # Remove EOS tags
         outs = []
         for y in result:
-            inds = np.argwhere(y==1)
+            inds = np.argwhere(y == preprocess.Vocab_Pad.EOS)
             if len(inds) > 0:
                 y = y[:inds[0, 0]]
             if len(y) == 0:

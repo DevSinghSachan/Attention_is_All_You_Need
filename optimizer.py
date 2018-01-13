@@ -5,12 +5,10 @@ import torch
 
 class TransformerAdamTrainer(object):
     """
-  Proposed in the paper "Attention is all you need" (https://papers.nips.cc/paper/7181-attention-is-all-you-need.pdf) [Page 7, Eq. 3]
-  In this the learning rate of Adam Optimizer is increased for the first warmup steps followed by a gradual decay
-  """
-
+    Proposed in the paper "Attention is all you need" (https://papers.nips.cc/paper/7181-attention-is-all-you-need.pdf) [Page 7, Eq. 3]
+    In this the learning rate of Adam Optimizer is increased for the first warmup steps followed by a gradual decay.
+    """
     def __init__(self, model, alpha=1.0, dim=512, warmup_steps=4000, beta_1=0.9, beta_2=0.98, eps=1e-9):
-
         self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),
                                           lr=alpha,
                                           betas=(beta_1, beta_2),

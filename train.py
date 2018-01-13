@@ -11,14 +11,13 @@ from time import time
 import torch
 from tqdm import tqdm
 
-import preprocess
 import evaluator
 import net
 import optimizer as optim
 from torchtext import data
 import utils
 import general_utils
-from config import get_args
+from config import get_train_args
 
 
 class CalculateBleu(object):
@@ -48,19 +47,19 @@ class CalculateBleu(object):
 
 
 def main():
-    args = get_args()
+    args = get_train_args()
     print(json.dumps(args.__dict__, indent=4))
 
     # Reading the int indexed text dataset
-    train_data = np.load(os.path.join(args.input, "train.npy")).tolist()
-    valid_data = np.load(os.path.join(args.input, "valid.npy")).tolist()
-    test_data = np.load(os.path.join(args.input, "test.npy")).tolist()
+    train_data = np.load(os.path.join(args.input, args.save_data + ".train.npy")).tolist()
+    valid_data = np.load(os.path.join(args.input, args.save_data + ".valid.npy")).tolist()
+    test_data = np.load(os.path.join(args.input, args.save_data + ".test.npy")).tolist()
 
     # Reading the vocab file
-    with io.open(os.path.join(args.input, 'vocab.src.json'), encoding='utf-8') as f:
+    with io.open(os.path.join(args.input, args.save_data + '.vocab.src.json'), encoding='utf-8') as f:
         source_id2w = json.load(f, cls=utils.Decoder)
 
-    with io.open(os.path.join(args.input, 'vocab.trg.json'), encoding='utf-8') as f:
+    with io.open(os.path.join(args.input, args.save_data + '.vocab.trg.json'), encoding='utf-8') as f:
         target_id2w = json.load(f, cls=utils.Decoder)
 
     # Define Model
@@ -89,10 +88,8 @@ def main():
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
     print("epoch \t steps \t train_loss \t lr \t time")
-    prog = general_utils.Progbar(target=iter_per_epoch)
+    prog = general_utils.Progbar(target=iter_per_epoch, verbose=2)
     time_s = time()
-
-    # CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 
     for epoch in range(args.epoch):
         random.shuffle(train_data)
@@ -121,7 +118,6 @@ def main():
                 prog.update(num_steps, values=[("train loss", loss.data.cpu().numpy()[0]),], exact=[("norm", norm)])
 
         # Check the validation accuracy of prediction after every epoch
-        prog = general_utils.Progbar(target=iter_per_epoch)
         test_losses = []
         test_iter = data.iterator.pool(valid_data, args.batchsize // 4,
                                        key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),

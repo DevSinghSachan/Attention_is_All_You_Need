@@ -4,9 +4,13 @@ from datetime import datetime
 import random
 
 
-def get_args():
+def get_train_args():
     parser = ArgumentParser(description='Implementation of "Attention is All You Need" in Pytorch')
 
+    parser.add_argument('--input', '-i', type=str, default='./data/ja_en',
+                        help='Input directory')
+    parser.add_argument('--save_data', type=str, default='demo',
+                        help='Output file for the prepared data')
     # Training Options
     parser.add_argument('--batchsize', '-b', type=int, default=10,
                         help='Number of sentences in each mini-batch')
@@ -25,37 +29,40 @@ def get_args():
     parser.add_argument('--tied', dest='tied', action='store_true',
                         help='tie target word embedding and output softmax layer')
     parser.set_defaults(tied=False)
-
     parser.add_argument('--pos_attention', dest='pos_attention', action='store_true',
                         help='positional attention in decoder')
     parser.set_defaults(pos_attention=False)
-
     parser.add_argument('--beam_size', dest='beam_size', type=int, default=1,
                         help='Beam size during translation')
-
     parser.add_argument('--no_bleu', dest='no_bleu', action='store_true',
                         help='Skip BLEU calculation')
     parser.set_defaults(no_bleu=False)
-
     parser.add_argument('--label_smoothing', type=float, default=0.0,
                         help='Use label smoothing for cross-entropy')
-
     parser.add_argument('--embed-position', action='store_true',
                         help='Use position embedding rather than sinusoid')
-
     parser.add_argument('--use_fixed_lr', dest='use_fixed_lr', action='store_true',
                         help='Use fixed learning rate rather than the ' +
                              'annealing proposed in the paper')
     parser.set_defaults(use_fixed_lr=False)
-
     parser.add_argument('--lr', default=1e-4, type=float,
                         help='learning for default Adam training')
     parser.add_argument('--max_norm', default=-1, type=float,
                         help='maximum L2 norm')
+    parser.add_argument('--out', '-o', default='result',
+                        help='Directory to output the result')
+    parser.add_argument('--debug', dest='debug', action='store_true',
+                        help="print progress bar")
+    parser.set_defaults(debug=False)
+
+    args = parser.parse_args()
+    return args
 
 
+def get_preprocess_args():
+    """Data Preprocessing Options"""
 
-    # Preprocessing Options
+    parser = ArgumentParser(description='Preprocessing Options')
     parser.add_argument('--source-vocab', type=int, default=40000,
                         help='Vocabulary size of source language')
     parser.add_argument('--target-vocab', type=int, default=40000,
@@ -63,36 +70,27 @@ def get_args():
     parser.add_argument('--tok', dest='tok', action='store_true',
                         help='Vocabulary size of target language')
     parser.set_defaults(tok=False)
-
     parser.add_argument('--input', '-i', type=str, default='./data/ja_en',
                         help='Input directory')
-    parser.add_argument('--source_train', '-strain', type=str,
+    parser.add_argument('--source_train', '-s-train', type=str,
                         default='train.ja',
                         help='Filename of train data for source language')
-    parser.add_argument('--target_train', '-ttrain', type=str,
+    parser.add_argument('--target_train', '-t-train', type=str,
                         default='train.en',
                         help='Filename of train data for target language')
-    parser.add_argument('--source_valid', '-svalid', type=str,
+    parser.add_argument('--source_valid', '-s-valid', type=str,
                         default='dev.ja',
                         help='Filename of validation data for source language')
-    parser.add_argument('--target_valid', '-tvalid', type=str,
+    parser.add_argument('--target_valid', '-t-valid', type=str,
                         default='dev.en',
                         help='Filename of validation data for target language')
-    parser.add_argument('--source_test', '-stest', type=str,
+    parser.add_argument('--source_test', '-s-test', type=str,
                         default='test.ja',
                         help='Filename of test data for source language')
-    parser.add_argument('--target_test', '-ttest', type=str,
+    parser.add_argument('--target_test', '-t-test', type=str,
                         default='test.en',
                         help='Filename of test data for target language')
-
-    parser.add_argument('--out', '-o', default='result',
-                        help='Directory to output the result')
-
-    # In debug, print progress bar, otherwise not
-    parser.add_argument('--debug', dest='debug', action='store_true')
-    parser.set_defaults(debug=False)
-
+    parser.add_argument('--save_data', type=str, default='demo',
+                        help='Output file for the prepared data')
     args = parser.parse_args()
     return args
-
-get_args()
