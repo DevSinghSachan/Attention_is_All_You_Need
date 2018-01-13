@@ -2,7 +2,8 @@
 from __future__ import unicode_literals, print_function
 
 import json
-import os.path
+import os
+import io
 import numpy as np
 import six
 import random
@@ -48,43 +49,24 @@ class CalculateBleu(object):
 
 def main():
     args = get_args()
-
     print(json.dumps(args.__dict__, indent=4))
 
-    # Check file
-    source_path = os.path.join(args.input, args.source)
-    source_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(source_path, args.source_vocab)
-    source_data = preprocess.make_dataset(source_path, source_vocab)
+    # Reading the int indexed text dataset
+    train_data = np.load(os.path.join(args.input, "train.npy")).tolist()
+    valid_data = np.load(os.path.join(args.input, "valid.npy")).tolist()
+    test_data = np.load(os.path.join(args.input, "test.npy")).tolist()
 
-    target_path = os.path.join(args.input, args.target)
-    target_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + preprocess.count_words(target_path, args.target_vocab)
-    target_data = preprocess.make_dataset(target_path, target_vocab)
-    assert len(source_data) == len(target_data)
+    # Reading the vocab file
+    with io.open(os.path.join(args.input, 'vocab.src.json'), encoding='utf-8') as f:
+        source_id2w = json.load(f, cls=utils.Decoder)
 
-    print("Source Vocab: {}".format(len(source_vocab)))
-    print("Target Vocab: {}".format(len(target_vocab)))
-
-    print('Original training data size: %d' % len(source_data))
-    train_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) < 50 and 0 < len(t) < 50]
-    print('Filtered training data size: %d' % len(train_data))
-
-    source_path = os.path.join(args.input, args.source_valid)
-    source_data = preprocess.make_dataset(source_path, source_vocab)
-    target_path = os.path.join(args.input, args.target_valid)
-    target_data = preprocess.make_dataset(target_path, target_vocab)
-    assert len(source_data) == len(target_data)
-    test_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
-
-    source_ids = {word: index for index, word in enumerate(source_vocab)}
-    target_ids = {word: index for index, word in enumerate(target_vocab)}
-
-    target_words = {i: w for w, i in target_ids.items()}
-    source_words = {i: w for w, i in source_ids.items()}
+    with io.open(os.path.join(args.input, 'vocab.trg.json'), encoding='utf-8') as f:
+        target_id2w = json.load(f, cls=utils.Decoder)
 
     # Define Model
     model = net.Transformer(args.layer,
-                            min(len(source_ids), len(source_words)),
-                            min(len(target_ids), len(target_words)),
+                            len(source_id2w),
+                            len(target_id2w),
                             args.unit,
                             multi_heads=args.multi_heads,
                             dropout=args.dropout,
@@ -140,7 +122,7 @@ def main():
         # Check the validation accuracy of prediction after every epoch
         prog = general_utils.Progbar(target=iter_per_epoch)
         test_losses = []
-        test_iter = data.iterator.pool(test_data, args.batchsize // 4,
+        test_iter = data.iterator.pool(valid_data, args.batchsize // 4,
                                        key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
                                        random_shuffler=data.iterator.RandomShuffler())
 
@@ -159,9 +141,9 @@ def main():
 
         if not args.no_bleu:
             if args.beam_size > 1 and epoch > 30:
-                CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+                CalculateBleu(model, valid_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
             else:
-                CalculateBleu(model, test_data, 'val/main/bleu', batch=args.batchsize // 4)()
+                CalculateBleu(model, valid_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
 
 if __name__ == '__main__':

@@ -1,7 +1,9 @@
+import json
 import numpy as np
 import torch
 from torch.autograd import Variable
 from chainer.dataset import convert
+
 
 if torch.cuda.is_available():
     FLOAT_TYPE = torch.cuda.FloatTensor
@@ -104,3 +106,21 @@ def source_pad_concat_convert(x_seqs, device, eos_id=1, bos_id=3):
     x_block = np.pad(x_block, ((0, 0), (1, 0)), 'constant', constant_values=bos_id)
     return x_block
 
+
+class Decoder(json.JSONDecoder):
+    def decode(self, s):
+        result = super().decode(s)  # result = super(Decoder, self).decode(s) for Python 2.x
+        return self._decode(result)
+
+    def _decode(self, o):
+        if isinstance(o, str):
+            try:
+                return int(o)
+            except ValueError:
+                return o
+        elif isinstance(o, dict):
+            return {self._decode(k): v for k, v in o.items()}
+        elif isinstance(o, list):
+            return [self._decode(v) for v in o]
+        else:
+            return o

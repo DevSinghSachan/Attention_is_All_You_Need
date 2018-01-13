@@ -27,27 +27,41 @@ def get_args():
 
     parser.add_argument('--beam_size', dest='beam_size', type=int, default=1,
                         help='Beam size during translation')
-    parser.add_argument('--input', '-i', type=str, default='./data/ja_en',
-                        help='Input directory')
-    parser.add_argument('--source', '-s', type=str,
-                        default='train.ja',
-                        help='Filename of train data for source language')
-    parser.add_argument('--target', '-t', type=str,
-                        default='train.en',
-                        help='Filename of train data for target language')
-    parser.add_argument('--source-valid', '-svalid', type=str,
-                        default='dev.ja',
-                        help='Filename of validation data for source language')
-    parser.add_argument('--target-valid', '-tvalid', type=str,
-                        default='dev.en',
-                        help='Filename of validation data for target language')
-    parser.add_argument('--out', '-o', default='result',
-                        help='Directory to output the result')
+
+    # Preprocessing Options
     parser.add_argument('--source-vocab', type=int, default=40000,
                         help='Vocabulary size of source language')
     parser.add_argument('--target-vocab', type=int, default=40000,
                         help='Vocabulary size of target language')
-    parser.add_argument('--no_bleu', dest='-no_bleu', action='store_true',
+    parser.add_argument('--tok', dest='tok', action='store_true',
+                        help='Vocabulary size of target language')
+    parser.set_defaults(tok=False)
+
+    parser.add_argument('--input', '-i', type=str, default='./data/ja_en',
+                        help='Input directory')
+    parser.add_argument('--source_train', '-strain', type=str,
+                        default='train.ja',
+                        help='Filename of train data for source language')
+    parser.add_argument('--target_train', '-ttrain', type=str,
+                        default='train.en',
+                        help='Filename of train data for target language')
+    parser.add_argument('--source_valid', '-svalid', type=str,
+                        default='dev.ja',
+                        help='Filename of validation data for source language')
+    parser.add_argument('--target_valid', '-tvalid', type=str,
+                        default='dev.en',
+                        help='Filename of validation data for target language')
+    parser.add_argument('--source_test', '-stest', type=str,
+                        default='test.ja',
+                        help='Filename of test data for source language')
+    parser.add_argument('--target_test', '-ttest', type=str,
+                        default='test.en',
+                        help='Filename of test data for target language')
+
+
+    parser.add_argument('--out', '-o', default='result',
+                        help='Directory to output the result')
+    parser.add_argument('--no_bleu', dest='no_bleu', action='store_true',
                         help='Skip BLEU calculation')
     parser.set_defaults(no_bleu=False)
 
