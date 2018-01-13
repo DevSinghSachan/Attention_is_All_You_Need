@@ -11,3 +11,4 @@ python translate.py -model models_ja_en_acc_63.38_ppl_9.24_e29.pt -src data/dev.
 # [Beam: 1, alpha 0.0] BLEU = 29.55, 59.1/34.3/23.2/16.2 (BP=1.000, ratio=1.018, hyp_len=4640, ref_len=4557)
 #
 
+

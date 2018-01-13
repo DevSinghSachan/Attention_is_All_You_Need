@@ -7,6 +7,7 @@ import random
 def get_args():
     parser = ArgumentParser(description='Implementation of "Attention is All You Need" in Pytorch')
 
+    # Training Options
     parser.add_argument('--batchsize', '-b', type=int, default=10,
                         help='Number of sentences in each mini-batch')
     parser.add_argument('--epoch', '-e', type=int, default=40,
@@ -27,6 +28,28 @@ def get_args():
 
     parser.add_argument('--beam_size', dest='beam_size', type=int, default=1,
                         help='Beam size during translation')
+
+    parser.add_argument('--no_bleu', dest='no_bleu', action='store_true',
+                        help='Skip BLEU calculation')
+    parser.set_defaults(no_bleu=False)
+
+    parser.add_argument('--label_smoothing', type=float, default=0.0,
+                        help='Use label smoothing for cross-entropy')
+
+    parser.add_argument('--embed-position', action='store_true',
+                        help='Use position embedding rather than sinusoid')
+
+    parser.add_argument('--use_fixed_lr', dest='use_fixed_lr', action='store_true',
+                        help='Use fixed learning rate rather than the ' +
+                             'annealing proposed in the paper')
+    parser.set_defaults(use_fixed_lr=False)
+
+    parser.add_argument('--lr', default=1e-4, type=float,
+                        help='learning for default Adam training')
+    parser.add_argument('--max_norm', default=-1, type=float,
+                        help='maximum L2 norm')
+
+
 
     # Preprocessing Options
     parser.add_argument('--source-vocab', type=int, default=40000,
@@ -58,22 +81,8 @@ def get_args():
                         default='test.en',
                         help='Filename of test data for target language')
 
-
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
-    parser.add_argument('--no_bleu', dest='no_bleu', action='store_true',
-                        help='Skip BLEU calculation')
-    parser.set_defaults(no_bleu=False)
-
-    parser.add_argument('--label_smoothing', type=float, default=0.0,
-                        help='Use label smoothing for cross-entropy')
-    parser.add_argument('--embed-position', action='store_true',
-                        help='Use position embedding rather than sinusoid')
-
-    parser.add_argument('--use_fixed_lr', dest='use_fixed_lr' ,action='store_true',
-                        help='Use fixed learning rate rather than the ' +
-                             'annealing proposed in the paper')
-    parser.set_defaults(use_fixed_lr=False)
 
     # In debug, print progress bar, otherwise not
     parser.add_argument('--debug', dest='debug', action='store_true')
