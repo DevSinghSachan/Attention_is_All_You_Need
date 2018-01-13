@@ -74,7 +74,8 @@ def main():
                             label_smoothing=args.label_smoothing,
                             embed_position=args.embed_position,
                             layer_norm=True,
-                            tied=args.tied)
+                            tied=args.tied,
+                            pos_attention=args.pos_attention)
 
     if args.gpu >= 0:
         model.cuda(args.gpu)
@@ -83,7 +84,7 @@ def main():
     if not args.use_fixed_lr:
         optimizer = optim.TransformerAdamTrainer(model)
     else:
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
+        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
@@ -111,7 +112,7 @@ def main():
             loss.backward()
 
             if args.use_fixed_lr:
-                norm = torch.nn.utils.clip_grad_norm(model.parameters(), 1)
+                norm = torch.nn.utils.clip_grad_norm(model.parameters(), args.max_norm)
             optimizer.step()
 
             if args.debug:

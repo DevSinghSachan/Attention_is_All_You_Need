@@ -101,13 +101,14 @@ class LinearSent(nn.Module):
 class MultiHeadAttention(nn.Module):
     """Multi Head Attention Layer for Sentence Blocks. For computational efficiency, dot-product to calculate
     query-key scores is performed in all the heads together."""
-    def __init__(self, n_units, multi_heads=8, attn_dropout=False, dropout=0.2):
+    def __init__(self, n_units, multi_heads=8, attn_dropout=False, dropout=0.2, pos_attn=False):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
         self.W_K = LinearSent(n_units, n_units, bias=False)
         self.W_V = LinearSent(n_units, n_units, bias=False)
         self.finishing_linear_layer = LinearSent(n_units, n_units, bias=False)
         self.h = multi_heads
+        self.pos_attn = pos_attn
         self.scale_score = 1. / (n_units // multi_heads) ** 0.5
         self.attn_dropout = attn_dropout
         if attn_dropout:
@@ -116,10 +117,14 @@ class MultiHeadAttention(nn.Module):
     def forward(self, x, z=None, mask=None):
         h = self.h
         Q = self.W_Q(x)
-        if z is None:
-            K, V = self.W_K(x), self.W_V(x)
+
+        if not self.pos_attn:
+            if z is None:
+                K, V = self.W_K(x), self.W_V(x)
+            else:
+                K, V = self.W_K(z), self.W_V(z)
         else:
-            K, V = self.W_K(z), self.W_V(z)
+            K, V = self.W_K(x), self.W_V(z)
 
         batch, n_units, n_querys = Q.shape
         _, _, n_keys = K.shape
@@ -205,13 +210,25 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, pos_attention=False):
         super(DecoderLayer, self).__init__()
         self.layer_norm = layer_norm
+        self.pos_attention = pos_attention
+
         self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
         if layer_norm:
             self.ln_1 = LayerNormSent(n_units, eps=1e-3)
+
+        if pos_attention:
+            position_encoding_block = Transformer.initialize_position_encoding(500, n_units)
+            self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block), requires_grad=False)
+            self.register_parameter("Position Encoding Block", self.position_encoding_block)
+
+            self.pos_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout, pos_attn=True)
+            self.dropout_pos = nn.Dropout(dropout)
+            if self.layer_norm:
+                self.ln_pos = LayerNormSent(n_units, eps=1e-3)
 
         self.source_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout2 = nn.Dropout(dropout)
@@ -224,10 +241,20 @@ class DecoderLayer(nn.Module):
             self.ln_3 = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, s, xy_mask, yy_mask):
+        batch, units, length = e.shape
+
         sub = self.self_attention(e, mask=yy_mask)
         e = e + self.dropout1(sub)
         if self.layer_norm:
             e = self.ln_1(e)
+
+        if self.pos_attention:
+            p = self.position_encoding_block[:, :, :length]
+            p = p.expand(batch, units, length)
+            sub = self.pos_attention(e, p, mask=yy_mask)
+            e = e + self.dropout_pos(sub)
+            if self.layer_norm:
+                e = self.ln_pos(e)
 
         sub = self.source_attention(e, s, mask=xy_mask)
         e = e + self.dropout2(sub)
@@ -256,11 +283,12 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False):
+    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False,
+                 pos_attention=False):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(1, n_layers + 1):
-            layer = DecoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout)
+            layer = DecoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention)
             self.layers.append(layer)
 
     def forward(self, e, source, xy_mask, yy_mask):
@@ -271,7 +299,8 @@ class Decoder(nn.Module):
 
 class Transformer(nn.Module):
     def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, multi_heads=8, dropout=0.1, max_length=500,
-                 label_smoothing=False, embed_position=False, layer_norm=True, tied=True, attn_dropout=False):
+                 label_smoothing=False, embed_position=False, layer_norm=True, tied=True, attn_dropout=False,
+                 pos_attention=False):
         super(Transformer, self).__init__()
         self.embed_x = nn.Embedding(n_source_vocab, n_units, padding_idx=0)
         self.embed_y = nn.Embedding(n_target_vocab, n_units, padding_idx=0)
@@ -280,7 +309,7 @@ class Transformer(nn.Module):
 
         self.embed_dropout = nn.Dropout(dropout)
         self.encoder = Encoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout)
-        self.decoder = Decoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout)
+        self.decoder = Decoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention)
 
         if embed_position:
             self.embed_pos = nn.Embedding(max_length, n_units, padding_idx=0)
@@ -294,10 +323,14 @@ class Transformer(nn.Module):
         self.n_target_vocab = n_target_vocab
         self.dropout = dropout
         self.label_smoothing = label_smoothing
-        self.initialize_position_encoding(max_length, n_units)
         self.scale_emb = self.n_units ** 0.5
 
-    def initialize_position_encoding(self, length, emb_dim):
+        position_encoding_block = self.initialize_position_encoding(max_length, n_units)
+        self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block), requires_grad=False)
+        self.register_parameter("Position Encoding Block", self.position_encoding_block)
+
+    @staticmethod
+    def initialize_position_encoding(length, emb_dim):
         channels = emb_dim
         position = np.arange(length, dtype='f')
         num_timescales = channels // 2
@@ -307,9 +340,7 @@ class Transformer(nn.Module):
         signal = np.concatenate([np.sin(scaled_time), np.cos(scaled_time)], axis=1)
         signal = np.reshape(signal, [1, length, channels])
         position_encoding_block = np.transpose(signal, (0, 2, 1))
-
-        self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block), requires_grad=False)
-        self.register_parameter("Position Encoding Block", self.position_encoding_block)
+        return position_encoding_block
 
     def make_input_embedding(self, embed, block):
         batch, length = block.shape
