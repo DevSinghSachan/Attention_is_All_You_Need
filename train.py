@@ -74,7 +74,8 @@ def main():
                             label_smoothing=args.label_smoothing,
                             embed_position=args.embed_position,
                             layer_norm=True,
-                            tied=args.tied)
+                            tied=args.tied,
+                            pos_attention=args.pos_attention)
 
     if args.gpu >= 0:
         model.cuda(args.gpu)

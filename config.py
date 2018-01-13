@@ -26,6 +26,10 @@ def get_args():
                         help='tie target word embedding and output softmax layer')
     parser.set_defaults(tied=False)
 
+    parser.add_argument('--pos_attention', dest='pos_attention', action='store_true',
+                        help='positional attention in decoder')
+    parser.set_defaults(pos_attention=False)
+
     parser.add_argument('--beam_size', dest='beam_size', type=int, default=1,
                         help='Beam size during translation')
 

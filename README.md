@@ -20,5 +20,8 @@ BLEU: 0.3133, 0.638323/0.384471/0.269708/0.199853 (BP = 0.923720, ratio=0.93, hy
 python train.py --tied -b 128 -g 0 --beam_size 5
 BLEU: 0.3291, 0.632548/0.392188/0.284585/0.213338 (BP = 0.939427, ratio=0.94, hyp_len=4289, ref_len=4557)
 
+python train.py --tied -b 156 -g 0 --beam_size 5
+BLEU: 0.3170, 0.604410/0.365872/0.259872/0.194633 (BP = 0.974893, ratio=0.98, hyp_len=4444, ref_len=4557)
+
 Experimental:
 - Beam Search
