@@ -5,6 +5,8 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 import utils
+import preprocess
+
 
 """This code was adapted from XNMT open-source toolkit on 01/10/2018. 
 URL: https://github.com/neulab/xnmt/blob/master/xnmt/search_strategy.py"""
@@ -73,12 +75,12 @@ class BeamSearch(object):
             new_set = []
             for hyp in active_hyp:
                 if length > 0:  # don't feed in the initial start-of-sentence token
-                    if hyp.id_list[-1] == 1:
+                    if hyp.id_list[-1] == preprocess.Vocab_Pad.EOS:
                         hyp.id_list = hyp.id_list[:-1]
                         completed_hyp.append(hyp)
                         continue
 
-                y_block = Variable(torch.LongTensor([[3] + hyp.id_list])).type(utils.LONG_TYPE)
+                y_block = Variable(torch.LongTensor([[preprocess.Vocab_Pad.BOS] + hyp.id_list])).type(utils.LONG_TYPE)
 
                 log_prob_tail = model(x_block, y_block, y_out_block=None, get_prediction=True)
                 score = F.log_softmax(log_prob_tail, dim=1).data.cpu().numpy()[0]

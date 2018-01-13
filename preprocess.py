@@ -1,5 +1,4 @@
 from __future__ import unicode_literals
-
 import collections
 import io
 import re
@@ -9,7 +8,7 @@ import progressbar
 import json
 import os
 from collections import namedtuple
-from config import get_args
+from config import get_preprocess_args
 
 
 split_pattern = re.compile(r'([.,!?"\':;)(])')
@@ -83,7 +82,7 @@ def make_array(word_id, words):
 
 
 if __name__ == "__main__":
-    args = get_args()
+    args = get_preprocess_args()
 
     print(json.dumps(args.__dict__, indent=4))
 
@@ -128,13 +127,13 @@ if __name__ == "__main__":
     source_id2w = {i: w for w, i in source_w2id.items()}
 
     # Save the dataset to numpy files
-    np.save(os.path.join(args.input, 'train.npy'), train_data)
-    np.save(os.path.join(args.input, 'valid.npy'), valid_data)
-    np.save(os.path.join(args.input, 'test.npy'), test_data)
+    np.save(os.path.join(args.input, args.save_data + '.train.npy'), train_data)
+    np.save(os.path.join(args.input, args.save_data + '.valid.npy'), valid_data)
+    np.save(os.path.join(args.input, args.save_data + '.test.npy'), test_data)
 
     # Save the vocab in json
-    with io.open(os.path.join(args.input, 'vocab.src.json'), 'w', encoding='utf-8') as f:
+    with io.open(os.path.join(args.input, args.save_data + '.vocab.src.json'), 'w', encoding='utf-8') as f:
         json.dump(source_id2w, f, sort_keys=True, indent=2)
 
-    with io.open(os.path.join(args.input, 'vocab.trg.json'), 'w', encoding='utf-8') as f:
+    with io.open(os.path.join(args.input, args.save_data + '.vocab.trg.json'), 'w', encoding='utf-8') as f:
         json.dump(target_id2w, f, sort_keys=True, indent=2)

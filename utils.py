@@ -2,7 +2,8 @@ import json
 import numpy as np
 import torch
 from torch.autograd import Variable
-from chainer.dataset import convert
+# from chainer.dataset import convert
+import convert
 
 
 if torch.cuda.is_available():
