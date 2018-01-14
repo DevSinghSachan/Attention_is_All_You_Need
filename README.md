@@ -59,5 +59,6 @@ For about 150K training examples, the model takes approximately 60 seconds for 1
 [//]: <> (git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 , "eval" branch, for best BLEU Scores)
 
 ## Acknowledgements
+* Thanks for the suggestions from Graham Neubig @gneubig and Matt Sperber @msperber
 * The code in this repository was originally based and has been adapted from the [Sosuke Kobayashi](https://github.com/soskek)'s implementation in Chainer "https://github.com/soskek/attention_is_all_you_need".
 * Some parts of the code were borrowed from [XNMT](https://github.com/neulab/xnmt/tree/master/xnmt) (based on [Dynet](https://github.com/clab/dynet)) and [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py) (based on [Pytorch](https://github.com/pytorch/pytorch)).
