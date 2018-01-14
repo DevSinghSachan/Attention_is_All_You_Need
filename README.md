@@ -41,15 +41,15 @@ One can install the above packages using the requirements file.
 ## Results
 
 BLEU Scores on Ja->En translation task with various configurations:
-- 31.33 (Layers=1, B=100, Beam=5)
+- **31.33** (Layers=1, B=100, Beam=5)
 (BLEU: 31.33, 63.8323/38.4471/26.9708/19.9853 (BP = 0.923720, ratio=0.93, hyp_len=4222, ref_len=4557))
-- 32.91 (Layers=1, B=128, Beam=5)
+- **32.91** (Layers=1, B=128, Beam=5)
 BLEU: 32.91, 63.2548/39.2188/28.4585/21.3338 (BP = 0.939427, ratio=0.94, hyp_len=4289, ref_len=4557)
-- 31.70 (Layers=1, B=156, Beam=5)
+- **31.70** (Layers=1, B=156, Beam=5)
 BLEU: 31.70, 60.4410/36.5872/25.9872/19.4633 (BP = 0.974893, ratio=0.98, hyp_len=4444, ref_len=4557)
-- 32.56 (Layers=1, B=100, Beam=5, Pos_Attention=True)
+- **32.56** (Layers=1, B=100, Beam=5, Pos_Attention=True)
 BLEU: 32.56, 62.0360/37.7281/27.1306/20.5811 (BP = 0.962901, ratio=0.96, hyp_len=4391, ref_len=4557)
-- 34.65 (Layers=6, B=100, Beam=5)
+- **34.65** (Layers=6, B=100, Beam=5)
 
 
 ## Training Speed:
