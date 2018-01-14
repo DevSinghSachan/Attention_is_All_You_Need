@@ -10,6 +10,7 @@ The overall model architecture is as shown in the figure:
 
 [transformer]: img/transformer.png "Transformer Model"
 
+
 Run with this command:
 python train.py -s train-big.ja -t train-big.en -g 0 -b 100 --tied --beam 5
 
@@ -53,3 +54,7 @@ python preprocess.py -s-train train-big.ja -t-train train-big.en
 
 git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 [for best BLEU Scores]
 Epoch  1,    50/ 1488; acc:   0.01; ppl: 24739.80; 22161 src tok/s; 16725 tgt tok/s;      3 s elapsed
+
+#### Acknowledgements
+* The code in this repository has been adapted from the [Sosuke Kobayashi](https://github.com/soskek)'s implementation in Chainer "https://github.com/soskek/attention_is_all_you_need".
+* Some parts of the code were borrowed from [XNMT](https://github.com/neulab/xnmt/tree/master/xnmt) (based on [Dynet](https://github.com/clab/dynet)) and [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py) (based on [Pytorch](https://github.com/pytorch/pytorch)).
