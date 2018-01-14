@@ -20,7 +20,7 @@ The code in this repository implements the following features:
 * LayerNorm and residual connections after each sublayer
 * Shared weights of target embedding and decoder softmax layer
 
-### Software Requirements
+## Software Requirements
 * Python 3.6
 * Pytorch v0.4 (needs manual installation from source https://github.com/pytorch/pytorch)
 * torchtext
@@ -28,12 +28,12 @@ The code in this repository implements the following features:
 
 One can install the above packages using the requirements file.
 
-### Usage
+## Usage
 
-#### Step 1: Preprocessing:
+### Step 1: Preprocessing:
 `python preprocess.py -i data/ja_en -s-train train-big.ja -t-train train-big.en -s-valid dev.ja -t-valid dev.en --save_data demo`
 
-#### Step 2: Train and Evaluate the model:
+### Step 2: Train and Evaluate the model:
 `python train.py --data demo -g 0 -b 128 --tied --beam 5`
 
 
@@ -75,6 +75,6 @@ Steps to run the code
 git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 [for best BLEU Scores]
 Epoch  1,    50/ 1488; acc:   0.01; ppl: 24739.80; 22161 src tok/s; 16725 tgt tok/s;      3 s elapsed
 
-### Acknowledgements
+## Acknowledgements
 * The code in this repository was originally based and has been adapted from the [Sosuke Kobayashi](https://github.com/soskek)'s implementation in Chainer "https://github.com/soskek/attention_is_all_you_need".
 * Some parts of the code were borrowed from [XNMT](https://github.com/neulab/xnmt/tree/master/xnmt) (based on [Dynet](https://github.com/clab/dynet)) and [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py) (based on [Pytorch](https://github.com/pytorch/pytorch)).
