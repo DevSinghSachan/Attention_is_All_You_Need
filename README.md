@@ -6,7 +6,7 @@ NIPS 2017 version: https://papers.nips.cc/paper/7181-attention-is-all-you-need.p
 
 The overall model architecture is as shown in the figure:
 
-![alt text][transformer]
+![][transformer]
 
 [transformer]: img/transformer.png "Transformer Model"
 
