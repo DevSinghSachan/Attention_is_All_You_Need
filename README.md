@@ -53,7 +53,7 @@ BLEU: 32.56, 62.0360/37.7281/27.1306/20.5811 (BP = 0.962901, ratio=0.96, hyp_len
 
 
 ## Training Speed:
-For about 150K training examples, the model takes approximately 60 seconds for 1 epoch on a modern Titan-Xp GPU with 12GB RAM.
+For about 150K training examples on the above dataset, the model takes approximately 60 seconds for 1 epoch on a modern Titan-Xp GPU with 12GB RAM.
 
 
 [//]: <> (git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 , "eval" branch, for best BLEU Scores)
