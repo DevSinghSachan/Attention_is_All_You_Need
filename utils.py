@@ -140,6 +140,8 @@ class Statistics(object):
     * accuracy
     * perplexity
     * elapsed time
+    Code adapted from OpenNMT-py open-source toolkit on 10/01/2018:
+    URL: https://github.com/OpenNMT/OpenNMT-py
     """
     def __init__(self, loss=0, n_words=0, n_correct=0):
         self.loss = loss

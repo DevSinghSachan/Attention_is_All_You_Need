@@ -1,4 +1,14 @@
-# Attention_is_All_You_Need
+## Attention is All you Need (Transformer)
+
+This repository implements the `transformer` model in *pytorch* framework which was introduced in the paper *[Attention is All you Need](https://arxiv.org/abs/1706.03762)* as described in their
+NIPS 2017 version: https://papers.nips.cc/paper/7181-attention-is-all-you-need.pdf
+
+
+The overall model architecture is as shown in the figure:
+
+![][transformer]
+
+[transformer]: img/transformer.png "Transformer Model"
 
 Run with this command:
 python train.py -s train-big.ja -t train-big.en -g 0 -b 100 --tied --beam 5
@@ -40,4 +50,6 @@ Steps to run the code
 Preperation
 python preprocess.py -s-train train-big.ja -t-train train-big.en
 
+
+git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 [for best BLEU Scores]
 Epoch  1,    50/ 1488; acc:   0.01; ppl: 24739.80; 22161 src tok/s; 16725 tgt tok/s;      3 s elapsed
