@@ -20,6 +20,10 @@ else:
     BYTE_TYPE = torch.ByteTensor
 
 
+def to_cpu(x):
+    return x.data.cpu().tolist()[0]
+
+
 class Accuracy(object):
     def __init__(self, ignore_index=None):
         self.ignore_index = ignore_index
