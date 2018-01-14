@@ -108,7 +108,6 @@ def main():
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
-    print("epoch \t steps \t train_loss \t lr \t time")
     time_s = time()
 
     for epoch in range(args.epoch):
@@ -138,6 +137,7 @@ def main():
             optimizer.step()
 
             report_stats.update(stat)
+            train_stats.update(stat)
             report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats, args.report_every)
 
         # Check the validation accuracy of prediction after every epoch
