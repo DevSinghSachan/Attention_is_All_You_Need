@@ -52,7 +52,7 @@ class LossScore(EvalScore):
 
 class BLEUScore(EvalScore):
     def __init__(self, bleu, frac_score_list=None, brevity_penalty_score=None, hyp_len=None, ref_len=None, ngram=4):
-        self.bleu = bleu * 100
+        self.bleu = bleu
         self.frac_score_list = frac_score_list
         self.brevity_penalty_score = brevity_penalty_score
         self.hyp_len = hyp_len
@@ -72,7 +72,8 @@ class BLEUScore(EvalScore):
         if self.bleu is None:
             return "0"
         else:
-            return "{:.4f}, {} (BP = {:.6f}, ratio={:.2f}, hyp_len={}, ref_len={})".format(self.bleu,
+            bleu = 100 * self.bleu
+            return "{:.4f}, {} (BP = {:.6f}, ratio={:.2f}, hyp_len={}, ref_len={})".format(bleu,
                                                                                            '/'.join(self.frac_score_list),
                                                                                            self.brevity_penalty_score,
                                                                                            self.hyp_len / self.ref_len,
