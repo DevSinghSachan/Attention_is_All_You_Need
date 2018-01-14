@@ -29,5 +29,15 @@ BLEU: 0.3227, 0.622374/0.383763/0.269527/0.197917 (BP = 0.960395, ratio=0.96, hy
 python train.py --tied -b 100 -g 0 --beam_size 5 --pos_attention
 BLEU: 0.3256, 0.620360/0.377281/0.271306/0.205811 (BP = 0.962901, ratio=0.96, hyp_len=4391, ref_len=4557)
 
+python train.py --tied -b 100 -g 0 --beam_size 5 --pos_attention -d 0.3
+BLEU: 0.3240, 0.627308/0.383586/0.269560/0.198476 (BP = 0.961990, ratio=0.96, hyp_len=4387, ref_len=4557)
+
 Experimental:
 - Beam Search
+
+Steps to run the code
+
+Preperation
+python preprocess.py -s-train train-big.ja -t-train train-big.en
+
+Epoch  1,    50/ 1488; acc:   0.01; ppl: 24739.80; 22161 src tok/s; 16725 tgt tok/s;      3 s elapsed

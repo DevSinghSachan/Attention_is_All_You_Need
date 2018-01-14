@@ -3,9 +3,10 @@ from __future__ import unicode_literals, print_function
 
 import json
 import os
+import sys
 import io
+import math
 import numpy as np
-import six
 import random
 from time import time
 import torch
