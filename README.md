@@ -1,4 +1,4 @@
-# Attention_is_All_You_Need
+Attention is All you Need (Transformer)
 
 Run with this command:
 python train.py -s train-big.ja -t train-big.en -g 0 -b 100 --tied --beam 5
@@ -40,4 +40,6 @@ Steps to run the code
 Preperation
 python preprocess.py -s-train train-big.ja -t-train train-big.en
 
+
+git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 [for best BLEU Scores]
 Epoch  1,    50/ 1488; acc:   0.01; ppl: 24739.80; 22161 src tok/s; 16725 tgt tok/s;      3 s elapsed

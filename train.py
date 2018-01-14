@@ -65,6 +65,7 @@ class CalculateBleu(object):
             hypotheses.extend(ys)
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
         print('BLEU:', bleu.score_str())
+        print('')
 
 
 def main():
