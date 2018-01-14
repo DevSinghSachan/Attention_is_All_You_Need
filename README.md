@@ -19,6 +19,7 @@ The code in this repository implements the following features:
 * Warm-up steps based training of Adam Optimizer
 * LayerNorm and residual connections after each sublayer
 * Shared weights of target embedding and decoder softmax layer
+* Beam Search (Experimental)
 
 ## Software Requirements
 * Python 3.6
@@ -34,46 +35,28 @@ One can install the above packages using the requirements file.
 `python preprocess.py -i data/ja_en -s-train train-big.ja -t-train train-big.en -s-valid dev.ja -t-valid dev.en --save_data demo`
 
 ### Step 2: Train and Evaluate the model:
-`python train.py --data demo -g 0 -b 128 --tied --beam 5`
+`python train.py --data demo -g 0 -b 128 --tied --beam 5 -d 0.2 --epoch 40 --layer 1 --multi_heads 8`
 
 
-BEST BLEU:
-- 31.74 (1-layer model, B: 100, no Layer Norm)
-- 32.09 (2-layer model, B: 80, no Layer Norm)
-- 32.26 (1-layer model, B: 100)
-- 31.63 (1-layer model, LayerNorm, data-bucketing, B: 100)
-- 32.49 (1-layer model, B: 100, Beam Seach: 5)
-- 32.81 (1-layer mode, B:128, Beam: 1)
-- 34.65.(6-layer model, B:100, Beam: 5)
+## Results
 
-Without Tokenization
-python train.py --tied -b 100 -g 0 --beam_size 5
-BLEU: 0.3133, 0.638323/0.384471/0.269708/0.199853 (BP = 0.923720, ratio=0.93, hyp_len=4222, ref_len=4557)
-
-python train.py --tied -b 128 -g 0 --beam_size 5
-BLEU: 0.3291, 0.632548/0.392188/0.284585/0.213338 (BP = 0.939427, ratio=0.94, hyp_len=4289, ref_len=4557)
-
-python train.py --tied -b 156 -g 0 --beam_size 5
-BLEU: 0.3170, 0.604410/0.365872/0.259872/0.194633 (BP = 0.974893, ratio=0.98, hyp_len=4444, ref_len=4557)
-
-python train.py --tied -b 128 -g 0 --beam_size 5 --pos_attention
-BLEU: 0.3227, 0.622374/0.383763/0.269527/0.197917 (BP = 0.960395, ratio=0.96, hyp_len=4380, ref_len=4557)
-
-python train.py --tied -b 100 -g 0 --beam_size 5 --pos_attention
-BLEU: 0.3256, 0.620360/0.377281/0.271306/0.205811 (BP = 0.962901, ratio=0.96, hyp_len=4391, ref_len=4557)
-
-python train.py --tied -b 100 -g 0 --beam_size 5 --pos_attention -d 0.3
-BLEU: 0.3240, 0.627308/0.383586/0.269560/0.198476 (BP = 0.961990, ratio=0.96, hyp_len=4387, ref_len=4557)
-
-Experimental:
-- Beam Search
-
-Steps to run the code
+BLEU Scores on Ja->En translation task with various configurations:
+- 31.33 (Layers=1, B=100, Beam=5)
+(BLEU: 31.33, 63.8323/38.4471/26.9708/19.9853 (BP = 0.923720, ratio=0.93, hyp_len=4222, ref_len=4557))
+- 32.91 (Layers=1, B=128, Beam=5)
+BLEU: 32.91, 63.2548/39.2188/28.4585/21.3338 (BP = 0.939427, ratio=0.94, hyp_len=4289, ref_len=4557)
+- 31.70 (Layers=1, B=156, Beam=5)
+BLEU: 31.70, 60.4410/36.5872/25.9872/19.4633 (BP = 0.974893, ratio=0.98, hyp_len=4444, ref_len=4557)
+- 32.56 (Layers=1, B=100, Beam=5, Pos_Attention=True)
+BLEU: 32.56, 62.0360/37.7281/27.1306/20.5811 (BP = 0.962901, ratio=0.96, hyp_len=4391, ref_len=4557)
+- 34.65 (Layers=6, B=100, Beam=5)
 
 
+## Training Speed:
+For about 150K training examples, the model takes approximately 60 seconds for 1 epoch on a modern Titan-Xp GPU with 12GB RAM.
 
-git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 [for best BLEU Scores]
-Epoch  1,    50/ 1488; acc:   0.01; ppl: 24739.80; 22161 src tok/s; 16725 tgt tok/s;      3 s elapsed
+
+[//]: <> (git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 , "eval" branch, for best BLEU Scores)
 
 ## Acknowledgements
 * The code in this repository was originally based and has been adapted from the [Sosuke Kobayashi](https://github.com/soskek)'s implementation in Chainer "https://github.com/soskek/attention_is_all_you_need".
