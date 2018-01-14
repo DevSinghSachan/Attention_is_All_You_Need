@@ -399,8 +399,8 @@ class Transformer(nn.Module):
         else:
             loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
 
-        accuracy = utils.accuracy(concat_logit_block, concat_t_block, ignore_index=0)
-        perplexity = torch.exp(loss.data)
+        n_correct, n_total = utils.accuracy(concat_logit_block, concat_t_block, ignore_index=0)
+        stats = utils.Statistics(loss=utils.to_cpu(loss) * n_total, n_correct=utils.to_cpu(n_correct), n_words=n_total)
 
         if self.label_smoothing:
             pre_loss = (1 - self.label_smoothing) * loss
@@ -408,7 +408,7 @@ class Transformer(nn.Module):
             ls_loss = torch.sum(ls_loss) / normalizer
             loss = pre_loss + (self.label_smoothing * ls_loss)
 
-        return loss, accuracy, perplexity
+        return loss, stats
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False):
         batch, x_length = x_block.shape

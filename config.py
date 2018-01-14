@@ -11,6 +11,8 @@ def get_train_args():
                         help='Input directory')
     parser.add_argument('--save_data', type=str, default='demo',
                         help='Output file for the prepared data')
+    parser.add_argument('--report_every', type=int, default=50,
+                        help='Print stats at this interval')
     # Training Options
     parser.add_argument('--batchsize', '-b', type=int, default=10,
                         help='Number of sentences in each mini-batch')

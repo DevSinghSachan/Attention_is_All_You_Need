@@ -4,8 +4,8 @@ from __future__ import unicode_literals, print_function
 import json
 import os
 import io
+import itertools
 import numpy as np
-import six
 import random
 from time import time
 import torch
@@ -18,6 +18,27 @@ from torchtext import data
 import utils
 import general_utils
 from config import get_train_args
+
+
+def report_func(epoch, batch, num_batches, start_time, report_stats, report_every):
+    """
+    This is the user-defined batch-level training progress
+    report function.
+    Args:
+        epoch(int): current epoch count.
+        batch(int): current batch count.
+        num_batches(int): total number of batches.
+        start_time(float): last report time.
+        lr(float): current learning rate.
+        report_stats(Statistics): old Statistics instance.
+    Returns:
+        report_stats(Statistics): updated Statistics instance.
+    """
+    if batch % report_every == -1 % report_every:
+        report_stats.output(epoch, batch+1, num_batches, start_time)
+        report_stats = utils.Statistics()
+
+    return report_stats
 
 
 class CalculateBleu(object):
@@ -88,7 +109,6 @@ def main():
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
     print("epoch \t steps \t train_loss \t lr \t time")
-    prog = general_utils.Progbar(target=iter_per_epoch, verbose=2)
     time_s = time()
 
     for epoch in range(args.epoch):
@@ -96,45 +116,50 @@ def main():
         train_iter = data.iterator.pool(train_data, args.batchsize,
                                         key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
                                         random_shuffler=data.iterator.RandomShuffler())
+        report_stats = utils.Statistics()
+        train_stats = utils.Statistics()
+        valid_stats = utils.Statistics()
 
-        for num_steps, train_batch in tqdm(enumerate(train_iter)):
+        for num_steps, train_batch in enumerate(train_iter):
             model.train()
             optimizer.zero_grad()
 
             # ---------- One iteration of the training loop ----------
-            # train_batch = next(iter(train_iter))
-            in_arrays = utils.seq2seq_pad_concat_convert(train_batch, -1)
-            loss, acc_stat, perp = model(*in_arrays)
+            src_words = len(list(itertools.chain.from_iterable(list(zip(*train_batch))[0])))
+            report_stats.n_src_words += src_words
+            train_stats.n_src_words += src_words
 
+            in_arrays = utils.seq2seq_pad_concat_convert(train_batch, -1)
+            loss, stat = model(*in_arrays)
             loss.backward()
 
             if args.use_fixed_lr:
                 norm = torch.nn.utils.clip_grad_norm(model.parameters(), args.max_norm)
             optimizer.step()
 
-            if args.debug:
-                dummy_norm = 50.0
-                norm = torch.nn.utils.clip_grad_norm(model.parameters(), dummy_norm)
-                prog.update(num_steps, values=[("train loss", loss.data.cpu().numpy()[0]),], exact=[("norm", norm)])
+            report_stats.update(stat)
+            report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats, args.report_every)
 
         # Check the validation accuracy of prediction after every epoch
-        test_losses = []
         test_iter = data.iterator.pool(valid_data, args.batchsize // 4,
                                        key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
                                        random_shuffler=data.iterator.RandomShuffler())
 
-        count, total = 0, 0
         for test_batch in test_iter:
             model.eval()
             in_arrays = utils.seq2seq_pad_concat_convert(test_batch, -1)
-            loss_test, acc_stat, perp = model(*in_arrays)
-            count += acc_stat[0]
-            total += acc_stat[1]
-            test_losses.append(loss_test.data.cpu().numpy())
+            loss_test, stat = model(*in_arrays)
+            valid_stats.update(stat)
 
-        accuracy = (count / total).cpu().tolist()[0]
-        print('val_loss:{:.04f} \t Acc:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), accuracy,
-                                                                       time()-time_s))
+        print('Train perplexity: %g' % train_stats.ppl())
+        print('Train accuracy: %g' % train_stats.accuracy())
+
+        # 2. Validate on the validation set.
+        print('Validation perplexity: %g' % valid_stats.ppl())
+        print('Validation accuracy: %g' % valid_stats.accuracy())
+
+        # print('val_loss:{:.04f} \t Acc:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), accuracy,
+        #                                                                time()-time_s))
 
         if not args.no_bleu:
             if args.beam_size > 1 and epoch > 30:
