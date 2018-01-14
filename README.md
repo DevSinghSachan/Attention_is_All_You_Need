@@ -11,8 +11,30 @@ The overall model architecture is as shown in the figure:
 [transformer]: img/transformer.png "Transformer Model"
 
 
-Run with this command:
-python train.py -s train-big.ja -t train-big.en -g 0 -b 100 --tied --beam 5
+The code in this repository implements the following features:
+* Positional Encoding
+* Multi-Head Dot-Product Attention
+* Positional Attention from "*[Non-Autoregressive Neural Machine Translation](https://arxiv.org/abs/1711.02281)*"
+* Label Smoothing
+* Warm-up steps based training of Adam Optimizer
+* LayerNorm and residual connections after each sublayer
+* Shared weights of target embedding and decoder softmax layer
+
+### Software Requirements
+* Python 3.6
+* Pytorch v0.4 (needs manual installation from source https://github.com/pytorch/pytorch)
+* torchtext
+* numpy
+
+One can install the above packages using the requirements file.
+
+### Usage
+
+#### Step 1: Preprocessing:
+`python preprocess.py -i data/ja_en -s-train train-big.ja -t-train train-big.en -s-valid dev.ja -t-valid dev.en --save_data demo`
+
+#### Step 2: Train and Evaluate the model:
+`python train.py --data demo -g 0 -b 128 --tied --beam 5`
 
 
 BEST BLEU:
@@ -48,13 +70,11 @@ Experimental:
 
 Steps to run the code
 
-Preperation
-python preprocess.py -s-train train-big.ja -t-train train-big.en
 
 
 git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 [for best BLEU Scores]
 Epoch  1,    50/ 1488; acc:   0.01; ppl: 24739.80; 22161 src tok/s; 16725 tgt tok/s;      3 s elapsed
 
-#### Acknowledgements
-* The code in this repository has been adapted from the [Sosuke Kobayashi](https://github.com/soskek)'s implementation in Chainer "https://github.com/soskek/attention_is_all_you_need".
+### Acknowledgements
+* The code in this repository was originally based and has been adapted from the [Sosuke Kobayashi](https://github.com/soskek)'s implementation in Chainer "https://github.com/soskek/attention_is_all_you_need".
 * Some parts of the code were borrowed from [XNMT](https://github.com/neulab/xnmt/tree/master/xnmt) (based on [Dynet](https://github.com/clab/dynet)) and [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py) (based on [Pytorch](https://github.com/pytorch/pytorch)).

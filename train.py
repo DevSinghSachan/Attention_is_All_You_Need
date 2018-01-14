@@ -73,15 +73,15 @@ def main():
     print(json.dumps(args.__dict__, indent=4))
 
     # Reading the int indexed text dataset
-    train_data = np.load(os.path.join(args.input, args.save_data + ".train.npy")).tolist()
-    valid_data = np.load(os.path.join(args.input, args.save_data + ".valid.npy")).tolist()
-    test_data = np.load(os.path.join(args.input, args.save_data + ".test.npy")).tolist()
+    train_data = np.load(os.path.join(args.input, args.data + ".train.npy")).tolist()
+    valid_data = np.load(os.path.join(args.input, args.data + ".valid.npy")).tolist()
+    test_data = np.load(os.path.join(args.input, args.data + ".test.npy")).tolist()
 
     # Reading the vocab file
-    with io.open(os.path.join(args.input, args.save_data + '.vocab.src.json'), encoding='utf-8') as f:
+    with io.open(os.path.join(args.input, args.data + '.vocab.src.json'), encoding='utf-8') as f:
         source_id2w = json.load(f, cls=utils.Decoder)
 
-    with io.open(os.path.join(args.input, args.save_data + '.vocab.trg.json'), encoding='utf-8') as f:
+    with io.open(os.path.join(args.input, args.data + '.vocab.trg.json'), encoding='utf-8') as f:
         target_id2w = json.load(f, cls=utils.Decoder)
 
     # Define Model
