@@ -47,6 +47,9 @@ def get_train_args():
                         help='Use fixed learning rate rather than the ' +
                              'annealing proposed in the paper')
     parser.set_defaults(use_fixed_lr=False)
+
+    parser.add_argument('--warmup_steps', type=float, default=4000,
+                        help='warmup steps in Adam Optimizer Training')
     parser.add_argument('--lr', default=1e-4, type=float,
                         help='learning for default Adam training')
     parser.add_argument('--max_norm', default=-1, type=float,
