@@ -96,7 +96,8 @@ if __name__ == "__main__":
     source_data = make_dataset(source_path, source_vocab, args.tok)
     target_data = make_dataset(target_path, target_vocab, args.tok)
     assert len(source_data) == len(target_data)
-    train_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) < 50 and 0 < len(t) < 50]
+    train_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) < args.max_seq_length
+                  and 0 < len(t) < args.max_seq_length]
 
     # Display corpus statistics
     print("Source Vocab: {}".format(len(source_vocab)))

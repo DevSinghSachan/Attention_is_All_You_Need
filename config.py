@@ -71,6 +71,7 @@ def get_preprocess_args():
                         help='Vocabulary size of target language')
     parser.add_argument('--tok', dest='tok', action='store_true',
                         help='Vocabulary size of target language')
+    parser.add_argument('--max_seq_length', dest='max_seq_length', type=int, default=50)
     parser.set_defaults(tok=False)
     parser.add_argument('--input', '-i', type=str, default='./data/ja_en',
                         help='Input directory')
