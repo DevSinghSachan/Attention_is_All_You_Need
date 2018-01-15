@@ -38,9 +38,36 @@ One can install the above packages using the requirements file.
 `python train.py --data demo -g 0 -b 128 --tied --beam 5 -d 0.2 --epoch 40 --layer 1 --multi_heads 8`
 
 
-## Results
+## Dataset
 
-BLEU Scores on Ja->En translation task with various configurations:
+Train and Dev set sizes of the datasets included are:
+
+| Dataset                     |Train Set|Dev Set|Test Set|
+| --------------------------- |:-------:|------:|-------:|
+| Japanse-English             | 148,850 | 500   | 500    |
+| IWSLT'15 English-Vietnamese | 133,317 | 1,553 | 1,268  |
+| IWSLT'16 German-English     | 98,132  | 887   | 1,565  |
+
+
+## Experiments
+All the experiments were performed on a modern Titan-Xp GPU with 12GB RAM.
+BLEU Scores are computed using Greedy Decoding.
+
+### Ja->En translation
+[Dataset url](https://github.com/neulab/xnmt/tree/master/examples/data)
+
+| Method                  | Layers | BLEU  | Parameters | Words / Sec |
+| -----------------------------|:-:|:-----:| ------:| -----:|
+| Transformer (self)           | 1 | 32.54 | 32.5 M | 60.1K |
+| Transformer (self)           | 6 | 34.65 | 69.3 M | 15.5K |
+| BiLSTM encoder (OpenNMT-py)  | 1 | 29.55 | 41.3 M | 31.5K |
+| LSTM encoder (OpenNMT-py)    | 1 | 30.15 | 41.8 M | 35.5K |
+| Transformer (OpenNMT-py)     | 1 | 26.83 | 42.3 M | 52.5K |
+| BiLSTM (XNMT)                | 1 |       |        | 9.1K (Target Words) |
+| Transformer (XNMT)           | 1 |       |        | 2.2K (Target Words) |
+
+Some more results:
+
 - **31.33** (Layers=1, B=100, Beam=5)
 BLEU: 31.33, 63.8/38.4/26.9/19.9 (BP = 0.923, ratio=0.93, hyp_len=4222, ref_len=4557)
 - **32.91** (Layers=1, B=128, Beam=5)
@@ -52,19 +79,32 @@ BLEU: 32.56, 62.0/37.7/27.1/20.6 (BP = 0.963, ratio=0.96, hyp_len=4391, ref_len=
 - **34.65** (Layers=6, B=100, Beam=5)
 
 
-BLEU Scores using greedy decoding on En->Vi (IWSLT) translation task with various configurations:
+### En->Vi translation
+[Dataset url](https://nlp.stanford.edu/projects/nmt/)
+
+| Method                 | Layers | BLEU  |Parameters| Words / Sec |
+| --------------------------- |:-:|:----: | ------:| ----:|
+| Transformer (self)          | 1 | 21.96 | 41.2 M | 57.8K |
+| Transformer (self)          | 2 | 22.96 | 48.5 M | 40.2K |
+| BiLSTM encoder (OpenNMT-py) | 1 | 22.03 | 53.5 M | 30.5K |
+| LSTM encoder (OpenNMT-py)   | 1 | 21.04 | 53.9 M | 29.5K |
+| Transformer (OpenNMT-py)    | 1 | 21.20 | 55.3 M | 48.5K |
+| BiLSTM (XNMT)                | 1 |       |        |  |
+| Transformer (XNMT)           | 1 |       |        |  |
 
 
-| Method        | BLEU Score           | Parameters  | Words / Second |
-| ------------- |:-------------:| -----:| ----:|
-| BiLSTM encoder (OpenNMT-py) | 22.03 | 53.5 M | 30.5K |
-| LSTM encoder (OpenNMT-py) |      |   53.9 M | 29.5K |
-| Transformer (self) | are neat  | 15.3 M |    $1 |
+### De->En translation
+[Dataset url](http://www.phontron.com/class/mtandseq2seq2017/) . This dataset is tokenised using NLTK and lowercased.
 
-
-## Training Speed:
-For about 150K training examples on the above dataset, the model takes approximately 60 seconds for 1 epoch on a modern Titan-Xp GPU with 12GB RAM.
-
+| Method                 | Layers | BLEU | Parameters  | Words / Sec |
+| --------------------------- |:-------------:|:---: | -----:| ----:|
+| Transformer (self)          | 1 |      |  |  |
+| Transformer (self)          | 2 |  |  |  |
+| BiLSTM encoder (OpenNMT-py) | 1 |  |  |  |
+| LSTM encoder (OpenNMT-py)   | 1 |  |  |  |
+| Transformer (OpenNMT-py)    | 1 |  |  |  |
+| BiLSTM (XNMT)                | 1 |       |        |  |
+| Transformer (XNMT)           | 1 |       |        |  |
 
 [//]: <> (git checkout 78acbe019f91e2e41b1975e1a06e9519d66a48a4 , "eval" branch, for best BLEU Scores)
 
