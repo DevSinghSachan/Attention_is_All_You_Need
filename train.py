@@ -16,8 +16,21 @@ import net
 import optimizer as optim
 from torchtext import data
 import utils
-import general_utils
 from config import get_train_args
+
+
+def tally_parameters(model):
+    n_params = sum([p.nelement() for p in model.parameters()])
+    print('* number of parameters: %d' % n_params)
+    enc = 0
+    dec = 0
+    for name, param in model.named_parameters():
+        if 'encoder' in name:
+            enc += param.nelement()
+        elif 'decoder' or 'generator' in name:
+            dec += param.nelement()
+    print('encoder: ', enc)
+    print('decoder: ', dec)
 
 
 def report_func(epoch, batch, num_batches, start_time, report_stats, report_every):
@@ -97,6 +110,8 @@ def main():
                             layer_norm=True,
                             tied=args.tied,
                             pos_attention=args.pos_attention)
+
+    tally_parameters(model)
 
     if args.gpu >= 0:
         model.cuda(args.gpu)

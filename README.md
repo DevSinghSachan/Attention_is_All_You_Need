@@ -47,9 +47,19 @@ BLEU: 31.33, 63.8/38.4/26.9/19.9 (BP = 0.923, ratio=0.93, hyp_len=4222, ref_len=
 BLEU: 32.91, 63.2/39.2/28.4/21.3 (BP = 0.939, ratio=0.94, hyp_len=4289, ref_len=4557)
 - **31.70** (Layers=1, B=156, Beam=5)
 BLEU: 31.70, 60.4/36.6/25.9/19.5 (BP = 0.975, ratio=0.98, hyp_len=4444, ref_len=4557)
-- **32.56** (Layers=1, B=100, Beam=5, Pos_Attention=True)  
+- **32.56** (Layers=1, B=100, Beam=5, Pos_Attention=True)
 BLEU: 32.56, 62.0/37.7/27.1/20.6 (BP = 0.963, ratio=0.96, hyp_len=4391, ref_len=4557)
 - **34.65** (Layers=6, B=100, Beam=5)
+
+
+BLEU Scores using greedy decoding on En->Vi (IWSLT) translation task with various configurations:
+
+
+| Method        | BLEU Score           | Parameters  | Words / Second |
+| ------------- |:-------------:| -----:| ----:|
+| BiLSTM encoder (OpenNMT-py) | 22.03 | 53.5 M | 30.5K |
+| LSTM encoder (OpenNMT-py) |      |   53.9 M | 29.5K |
+| Transformer (self) | are neat  | 15.3 M |    $1 |
 
 
 ## Training Speed:

@@ -1,6 +1,9 @@
 python translate.py -model models_ja_en_acc_63.38_ppl_9.24_e29.pt -src data/dev.ja -output pred.txt \
 -verbose -report_bleu -gpu 0 -beam_size 5 -tgt data/dev.en -alpha 1
 
+
+
+
 # (Transformer) Result for ja->en train-big dataset included with XNMT. evaluated on dev set
 # [Beam: 5, alpha 1] || BLEU = 28.36, 62.8/37.1/25.3/18.5 (BP=0.877, ratio=0.884, hyp_len=4030, ref_len=4557)
 # [Beam: 5, alpha 0] || BLEU ~(approximately) 27.71
