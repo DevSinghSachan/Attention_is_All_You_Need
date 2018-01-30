@@ -183,6 +183,8 @@ def main():
             else:
                 CalculateBleu(model, valid_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
+    CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+
 
 if __name__ == '__main__':
     main()
