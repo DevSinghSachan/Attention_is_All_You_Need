@@ -187,7 +187,7 @@ def main():
 
             if score >= best_score:
                 best_score = score
-                torch.save(args.model_file, model)
+                torch.save(model, args.model_file)
 
     # BLEU score on Test Data
     model = torch.load(args.model_file)
