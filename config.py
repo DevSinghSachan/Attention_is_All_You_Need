@@ -60,6 +60,9 @@ def get_train_args():
                         help="print progress bar")
     parser.set_defaults(debug=False)
 
+    parser.add_argument('--model_file', default='results/model.ckpt', type=str,
+                        help='path to save the model')
+
     args = parser.parse_args()
     return args
 

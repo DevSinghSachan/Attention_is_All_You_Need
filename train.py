@@ -79,9 +79,11 @@ class CalculateBleu(object):
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
         print('BLEU:', bleu.score_str())
         print('')
+        return bleu.bleu
 
 
 def main():
+    best_score = 0
     args = get_train_args()
     print(json.dumps(args.__dict__, indent=4))
 
@@ -179,11 +181,17 @@ def main():
 
         if not args.no_bleu:
             if args.beam_size > 1 and epoch > 30:
-                CalculateBleu(model, valid_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+                score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
             else:
-                CalculateBleu(model, valid_data, 'val/main/bleu', batch=args.batchsize // 4)()
+                score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
-    CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+            if score >= best_score:
+                best_score = score
+                torch.save(args.model_file, model)
+
+    # BLEU score on Test Data
+    model = torch.load(args.model_file)
+    score = CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 
 
 if __name__ == '__main__':
