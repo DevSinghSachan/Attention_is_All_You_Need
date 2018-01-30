@@ -190,6 +190,7 @@ def main():
                 torch.save(model, args.model_file)
 
     # BLEU score on Test Data
+    print('Test Set BLEU Score')
     model = torch.load(args.model_file)
     score = CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 

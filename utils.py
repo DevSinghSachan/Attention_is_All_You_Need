@@ -5,7 +5,8 @@ import time
 import math
 import sys
 from torch.autograd import Variable
-import convert
+# import convert
+from chainer.dataset import convert
 
 
 if torch.cuda.is_available():
