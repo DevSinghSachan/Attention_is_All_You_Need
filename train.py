@@ -120,7 +120,7 @@ def main():
     print(model)
 
     if not args.use_fixed_lr:
-        optimizer = optim.TransformerAdamTrainer(model, args.warmup_steps)
+        optimizer = optim.TransformerAdamTrainer(model, warmup_steps=args.warmup_steps)
     else:
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 
