@@ -184,8 +184,11 @@ def main():
                 torch.save(model, args.model_file)
 
     # BLEU score on Test Data
-    print('Test Set BLEU Score')
     model = torch.load(args.model_file)
+    print('Dev Set BLEU Score')
+    score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+
+    print('Test Set BLEU Score')
     score = CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 
 
