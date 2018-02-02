@@ -72,7 +72,7 @@ class CalculateBleu(object):
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
             if self.beam_size > 1:
-                ys = [self.model.translate(sources, self.max_length, beam=2)]
+                ys = [self.model.translate(sources, self.max_length, beam=self.beam_size)]
             else:
                 ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
             hypotheses.extend(ys)
@@ -176,14 +176,8 @@ def main():
         print('Validation perplexity: %g' % valid_stats.ppl())
         print('Validation accuracy: %g' % valid_stats.accuracy())
 
-        # print('val_loss:{:.04f} \t Acc:{:.04f} \t time: {:.2f}'.format(np.mean(test_losses), accuracy,
-        #                                                                time()-time_s))
-
         if not args.no_bleu:
-            if args.beam_size > 1 and epoch > 30:
-                score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
-            else:
-                score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=args.batchsize // 4)()
+            score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
             if score >= best_score:
                 best_score = score
