@@ -181,10 +181,10 @@ def main():
 
             if score >= best_score:
                 best_score = score
-                torch.save(model, args.model_file)
+                torch.save(model, os.path.join(args.input, args.model_file))
 
     # BLEU score on Test Data
-    model = torch.load(args.model_file)
+    model = torch.load(os.path.join(args.input, args.model_file))
     print('Dev Set BLEU Score')
     score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 
