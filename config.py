@@ -22,7 +22,7 @@ def get_train_args():
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--unit', '-u', type=int, default=512,
                         help='Number of units')
-    parser.add_argument('--layer', '-l', type=int, default=1,
+    parser.add_argument('--layers', '-l', type=int, default=1,
                         help='Number of layers')
     parser.add_argument('--multi_heads', type=int, default=8,
                         help='Number of heads in attention mechanism')

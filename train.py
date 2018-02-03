@@ -108,7 +108,7 @@ def main():
         target_id2w = json.load(f, cls=utils.Decoder)
 
     # Define Model
-    model = net.Transformer(args.layer,
+    model = net.Transformer(args.layers,
                             len(source_id2w),
                             len(target_id2w),
                             args.unit,
