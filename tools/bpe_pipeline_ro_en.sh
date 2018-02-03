@@ -7,15 +7,15 @@ TF="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 #======= EXPERIMENT SETUP ======
 
 # update these variables
-NAME="run_de_en"
+NAME="run_ro_en"
 OUT="tf-runs/$NAME"
 
-DATA="/projects/tir1/users/dsachan/Attention_is_All_You_Need/data/de_en"
-TRAIN_SRC=$DATA/train.de
+DATA="/projects/tir1/users/dsachan/Attention_is_All_You_Need/data/ro_en"
+TRAIN_SRC=$DATA/train.ro
 TRAIN_TGT=$DATA/train.en
-VALID_SRC=$DATA/dev.de
+VALID_SRC=$DATA/dev.ro
 VALID_TGT=$DATA/dev.en
-TEST_SRC=$DATA/test.de
+TEST_SRC=$DATA/test.ro
 TEST_TGT=$DATA/test.en
 
 BPE="" # default
