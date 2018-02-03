@@ -11,8 +11,8 @@ NAME="run_ja_en"
 OUT="tf-runs/$NAME"
 
 DATA="data/ja_en"
-TRAIN_SRC=$DATA/train.ja
-TRAIN_TGT=$DATA/train.en
+TRAIN_SRC=$DATA/train-big.ja
+TRAIN_TGT=$DATA/train-big.en
 VALID_SRC=$DATA/dev.ja
 VALID_TGT=$DATA/dev.en
 TEST_SRC=$DATA/test.ja
