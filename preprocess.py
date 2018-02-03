@@ -116,7 +116,7 @@ if __name__ == "__main__":
     # Test Dataset
     source_path = os.path.join(args.input, args.source_test)
     source_data = make_dataset(source_path, source_vocab, args.tok)
-    target_path = os.path.join(args.input, args.target_test)
+    target_path = os.path.realpath(os.path.join(args.input, args.target_test))
     target_data = make_dataset(target_path, target_vocab, args.tok)
     assert len(source_data) == len(target_data)
     test_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
