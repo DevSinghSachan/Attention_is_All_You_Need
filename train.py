@@ -19,6 +19,14 @@ import utils
 from config import get_train_args
 
 
+def save_output(hypotheses, vocab, outf):
+    # Save the Hypothesis to output file
+    with io.open(outf, 'w') as fp:
+        for sent in hypotheses:
+            words = [vocab[y] for y in sent]
+            fp.write(' '.join(words) + '\n')
+
+
 def tally_parameters(model):
     n_params = sum([p.nelement() for p in model.parameters()])
     print('* number of parameters: %d' % n_params)
@@ -79,7 +87,7 @@ class CalculateBleu(object):
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
         print('BLEU:', bleu.score_str())
         print('')
-        return bleu.bleu
+        return bleu.bleu, hypotheses
 
 
 def main():
@@ -89,7 +97,7 @@ def main():
 
     # Reading the int indexed text dataset
     train_data = np.load(os.path.join(args.input, args.data + ".train.npy")).tolist()
-    valid_data = np.load(os.path.join(args.input, args.data + ".valid.npy")).tolist()
+    dev_data = np.load(os.path.join(args.input, args.data + ".valid.npy")).tolist()
     test_data = np.load(os.path.join(args.input, args.data + ".test.npy")).tolist()
 
     # Reading the vocab file
@@ -159,7 +167,7 @@ def main():
             report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats, args.report_every)
 
         # Check the validation accuracy of prediction after every epoch
-        test_iter = data.iterator.pool(valid_data, args.batchsize // 4,
+        test_iter = data.iterator.pool(dev_data, args.batchsize // 4,
                                        key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
                                        random_shuffler=data.iterator.RandomShuffler())
 
@@ -177,7 +185,7 @@ def main():
         print('Validation accuracy: %g' % valid_stats.accuracy())
 
         if not args.no_bleu:
-            score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=args.batchsize // 4)()
+            score, _ = CalculateBleu(model, dev_data, 'val/main/bleu', batch=args.batchsize // 4)()
 
             if score >= best_score:
                 best_score = score
@@ -186,10 +194,12 @@ def main():
     # BLEU score on Test Data
     model = torch.load(args.model_file)
     print('Dev Set BLEU Score')
-    score = CalculateBleu(model, valid_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+    _, dev_hyp = CalculateBleu(model, dev_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+    save_output(dev_hyp, target_id2w, args.dev_hyp)
 
     print('Test Set BLEU Score')
-    score = CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+    _, test_hyp = CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
+    save_output(test_hyp, target_id2w, args.test_hyp)
 
 
 if __name__ == '__main__':

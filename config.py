@@ -63,6 +63,9 @@ def get_train_args():
     parser.add_argument('--model_file', default='results/model.ckpt', type=str,
                         help='path to save the model')
 
+    parser.add_argument('--dev_hyp', default='results/valid.out', type=str, help='path to save dev set hypothesis')
+    parser.add_argument('--test_hyp', default='results/test.out', type=str, help='path to save test set hypothesis')
+
     args = parser.parse_args()
     return args
 
