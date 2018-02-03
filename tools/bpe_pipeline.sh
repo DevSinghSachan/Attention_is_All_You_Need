@@ -10,7 +10,7 @@ TF="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 NAME="run_ja_en"
 OUT="tf-runs/$NAME"
 
-DATA="data/ja_en"
+DATA=$(pwd)"/data/ja_en"
 TRAIN_SRC=$DATA/train-big.ja
 TRAIN_TGT=$DATA/train-big.en
 VALID_SRC=$DATA/dev.ja
