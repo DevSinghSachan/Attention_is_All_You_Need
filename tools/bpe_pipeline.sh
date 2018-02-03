@@ -103,7 +103,7 @@ python ${TF}/preprocess.py \
       -s-valid valid.src \
       -t-valid valid.tgt \
       -s-test test.src \
-      -t-test test.en \
+      -t-test test.tgt \
       --save_data processed
 
 echo "Step 2: Train"
