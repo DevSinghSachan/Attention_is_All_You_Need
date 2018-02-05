@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 import preprocess
 import utils
-from config import get_train_args
+from config import get_translate_args
 
 
 def save_output(hypotheses, vocab, outf):
@@ -43,7 +43,7 @@ class TranslateText(object):
 
 
 def main():
-    args = get_train_args()
+    args = get_translate_args()
     print(json.dumps(args.__dict__, indent=4))
 
     # Reading the vocab file

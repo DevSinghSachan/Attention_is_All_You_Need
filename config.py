@@ -108,7 +108,7 @@ def get_preprocess_args():
     return args
 
 
-def get_transalte_args():
+def get_translate_args():
     parser = ArgumentParser(description='Translate Options')
     parser.add_argument('--input', '-i', type=str, default='./data/ja_en',
                         help='Input directory')
