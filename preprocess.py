@@ -61,8 +61,8 @@ def count_words(path, max_vocab_size=40000, tok=False):
     return vocab
 
 
-def make_dataset(path, vocab, tok=False):
-    w2id = {word: index for index, word in enumerate(vocab)}
+def make_dataset(path, w2id, tok=False):
+    # w2id = {word: index for index, word in enumerate(vocab)}
     dataset = []
     token_count = 0
     unknown_count = 0
@@ -92,9 +92,12 @@ if __name__ == "__main__":
     target_path = os.path.join(args.input, args.target_train)
     target_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + count_words(target_path, args.target_vocab, args.tok)
 
+    source_w2id = {word: index for index, word in enumerate(source_vocab)}
+    target_w2id = {word: index for index, word in enumerate(target_vocab)}
+
     # Train Dataset
-    source_data = make_dataset(source_path, source_vocab, args.tok)
-    target_data = make_dataset(target_path, target_vocab, args.tok)
+    source_data = make_dataset(source_path, source_w2id, args.tok)
+    target_data = make_dataset(target_path, target_w2id, args.tok)
     assert len(source_data) == len(target_data)
     train_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) < args.max_seq_length
                   and 0 < len(t) < args.max_seq_length]
@@ -107,22 +110,19 @@ if __name__ == "__main__":
 
     # Valid Dataset
     source_path = os.path.join(args.input, args.source_valid)
-    source_data = make_dataset(source_path, source_vocab, args.tok)
+    source_data = make_dataset(source_path, source_w2id, args.tok)
     target_path = os.path.join(args.input, args.target_valid)
-    target_data = make_dataset(target_path, target_vocab, args.tok)
+    target_data = make_dataset(target_path, target_w2id, args.tok)
     assert len(source_data) == len(target_data)
     valid_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
 
     # Test Dataset
     source_path = os.path.join(args.input, args.source_test)
-    source_data = make_dataset(source_path, source_vocab, args.tok)
+    source_data = make_dataset(source_path, source_w2id, args.tok)
     target_path = os.path.realpath(os.path.join(args.input, args.target_test))
-    target_data = make_dataset(target_path, target_vocab, args.tok)
+    target_data = make_dataset(target_path, target_w2id, args.tok)
     assert len(source_data) == len(target_data)
     test_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
-
-    source_w2id = {word: index for index, word in enumerate(source_vocab)}
-    target_w2id = {word: index for index, word in enumerate(target_vocab)}
 
     target_id2w = {i: w for w, i in target_w2id.items()}
     source_id2w = {i: w for w, i in source_w2id.items()}
