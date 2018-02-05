@@ -123,6 +123,10 @@ def get_translate_args():
     parser.add_argument('--batchsize', type=int, default=100)
     parser.add_argument('--beam_size', type=int, default=5)
 
+    args = parser.parse_args()
+    return args
+
+
 
 
 
