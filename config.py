@@ -116,6 +116,10 @@ def get_translate_args():
                         help='Output file for the prepared data')
     parser.add_argument('--src', type=str,
                         help='Source sequence to decode (one line per sequence)')
+    parser.add_argument('--tok', dest='tok', action='store_true',
+                        help='Vocabulary size of target language')
+    parser.set_defaults(tok=False)
+
     parser.add_argument('--output', type=str, default='pred.txt',
                         help='Path to output the predictions (each line will be the decoded sequence')
     parser.add_argument('--model_file', type=str, default='results/model.ckpt',
