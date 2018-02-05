@@ -106,3 +106,23 @@ def get_preprocess_args():
                         help='Output file for the prepared data')
     args = parser.parse_args()
     return args
+
+
+def get_transalte_args():
+    parser = ArgumentParser(description='Translate Options')
+    parser.add_argument('--input', '-i', type=str, default='./data/ja_en',
+                        help='Input directory')
+    parser.add_argument('--data', type=str, default='demo',
+                        help='Output file for the prepared data')
+    parser.add_argument('--src', type=str,
+                        help='Source sequence to decode (one line per sequence)')
+    parser.add_argument('--output', type=str, default='pred.txt',
+                        help='Path to output the predictions (each line will be the decoded sequence')
+    parser.add_argument('--model_file', type=str, default='results/model.ckpt',
+                        help='Path to model .ckpt file')
+    parser.add_argument('--batchsize', type=int, default=100)
+    parser.add_argument('--beam_size', type=int, default=5)
+
+
+
+
