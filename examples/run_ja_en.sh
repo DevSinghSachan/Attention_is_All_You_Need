@@ -11,4 +11,4 @@ python ${AIAYN}/train.py -i ${AIAYN}/data/ja_en --data demo --batchsize 128 --ti
 
 # Predict
 python ${AIAYN}/translate.py -i ${AIAYN}/data/ja_en --data demo --batchsize 128 --beam_size 5 \
---model_file "${AIAYN}/results/model.ckpt" --src ${AIAYN}/data/ja_en/test.en
+--model_file "${AIAYN}/results/model.ckpt" --src ${AIAYN}/data/ja_en/test.ja

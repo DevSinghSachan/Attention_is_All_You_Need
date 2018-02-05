@@ -45,6 +45,10 @@ python preprocess.py -i data/ja_en -s-train train-big.ja -t-train train-big.en -
 python train.py -i data/ja_en --data demo --batchsize 128 --tied --beam 5 --dropout 0.2 --epoch 40 --layer 1 --multi_heads 8 --gpu 0
 ```
 
+```bash
+python translate.py -i data/ja_en --data demo --batchsize 128 --beam_size 5 --model_file "results/model.ckpt" --src data/ja_en/test.ja
+```
+
 ## Dataset
 
 Dataset Statistics included in `data` directory are:
