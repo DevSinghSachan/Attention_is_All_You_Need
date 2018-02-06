@@ -54,9 +54,11 @@ def main():
         target_id2w = json.load(f, cls=utils.Decoder)
 
     source_w2id = {w: i for i, w in source_id2w.items()}
-    source_data = preprocess.make_dataset(args.src, source_w2id, args.tok)
+    source_data = preprocess.make_dataset(os.path.realpath(args.src), source_w2id, args.tok)
 
     model = torch.load(args.model_file)
+    model.cuda(0)
+    
     hyp = TranslateText(model, source_data, batch=1, beam_size=args.beam_size)()
     save_output(hyp, target_id2w, args.output)
 
