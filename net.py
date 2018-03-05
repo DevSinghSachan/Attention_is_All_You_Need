@@ -104,7 +104,7 @@ class MultiHeadAttention(nn.Module):
     query-key scores is performed in all the heads together.
     Positional Attention is introduced in "Non-Autoregressive Neural Machine Translation" (https://arxiv.org/abs/1711.02281)
     """
-    def __init__(self, n_units, multi_heads=8, attn_dropout=False, dropout=0.2, pos_attn=False):
+    def __init__(self, n_units, multi_heads=8, attn_dropout=True, dropout=0.2, pos_attn=False, attention_dropout=0.1):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
         self.W_K = LinearSent(n_units, n_units, bias=False)
@@ -114,8 +114,7 @@ class MultiHeadAttention(nn.Module):
         self.pos_attn = pos_attn
         self.scale_score = 1. / (n_units // multi_heads) ** 0.5
         self.attn_dropout = attn_dropout
-        if attn_dropout:
-            self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(attention_dropout)
 
     def forward(self, x, z=None, mask=None):
         h = self.h
@@ -143,8 +142,8 @@ class MultiHeadAttention(nn.Module):
         assert (V.shape == (batch * h, n_units // h, n_keys))
 
         mask = torch.cat([mask] * h, dim=0)
-        Q = Q.transpose(1, 2).contiguous()
-        batch_A = torch.bmm(Q, K) * self.scale_score
+        Q = Q.transpose(1, 2).contiguous() * self.scale_score
+        batch_A = torch.bmm(Q, K)
 
         batch_A = batch_A.masked_fill(1. - mask, -np.inf)
         batch_A = F.softmax(batch_A, dim=2)
@@ -154,8 +153,7 @@ class MultiHeadAttention(nn.Module):
         assert (batch_A.shape == (batch * h, n_querys, n_keys))
 
         # Attention Dropout
-        if self.attn_dropout:
-            batch_A = self.dropout(batch_A)
+        batch_A = self.dropout(batch_A)
 
         # Calculate Weighted Sum
         V = V.transpose(1, 2).contiguous()
@@ -172,15 +170,16 @@ class MultiHeadAttention(nn.Module):
 
 
 class FeedForwardLayer(nn.Module):
-    def __init__(self, n_units, n_hidden):
+    def __init__(self, n_units, n_hidden, relu_dropout=0.1):
         super(FeedForwardLayer, self).__init__()
         self.W_1 = LinearSent(n_units, n_hidden)
         self.act = nn.ReLU()
+        self.dropout = nn.Dropout(relu_dropout)
         self.W_2 = LinearSent(n_hidden, n_units)
 
     def forward(self, e):
         e = self.W_1(e)
-        e = self.act(e)
+        e = self.dropout(self.act(e))
         e = self.W_2(e)
         return e
 
@@ -188,27 +187,22 @@ class FeedForwardLayer(nn.Module):
 class EncoderLayer(nn.Module):
     def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, n_hidden=2048):
         super(EncoderLayer, self).__init__()
-        self.layer_norm = layer_norm
         self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
-        if layer_norm:
-            self.ln_1 = LayerNormSent(n_units, eps=1e-3)
+        self.ln_1 = LayerNormSent(n_units, eps=1e-3)
 
         self.feed_forward = FeedForwardLayer(n_units, n_hidden)
         self.dropout2 = nn.Dropout(dropout)
-        if layer_norm:
-            self.ln_2 = LayerNormSent(n_units, eps=1e-3)
+        self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, xx_mask):
+        e = self.ln_1(e)
         sub = self.self_attention(e, mask=xx_mask)
         e = e + self.dropout1(sub)
-        if self.layer_norm:
-            e = self.ln_1(e)
 
+        e = self.ln_2(e)
         sub = self.feed_forward(e)
         e = e + self.dropout2(sub)
-        if self.layer_norm:
-            e = self.ln_2(e)
         return e
 
 
@@ -216,13 +210,11 @@ class DecoderLayer(nn.Module):
     def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, pos_attention=False,
                  n_hidden=2048):
         super(DecoderLayer, self).__init__()
-        self.layer_norm = layer_norm
         self.pos_attention = pos_attention
 
         self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
-        if layer_norm:
-            self.ln_1 = LayerNormSent(n_units, eps=1e-3)
+        self.ln_1 = LayerNormSent(n_units, eps=1e-3)
 
         if pos_attention:
             position_encoding_block = Transformer.initialize_position_encoding(500, n_units)
@@ -231,44 +223,37 @@ class DecoderLayer(nn.Module):
 
             self.pos_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout, pos_attn=True)
             self.dropout_pos = nn.Dropout(dropout)
-            if self.layer_norm:
-                self.ln_pos = LayerNormSent(n_units, eps=1e-3)
+            self.ln_pos = LayerNormSent(n_units, eps=1e-3)
 
         self.source_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout2 = nn.Dropout(dropout)
-        if layer_norm:
-            self.ln_2 = LayerNormSent(n_units, eps=1e-3)
+        self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
         self.feed_forward = FeedForwardLayer(n_units, n_hidden)
         self.dropout3 = nn.Dropout(dropout)
-        if layer_norm:
-            self.ln_3 = LayerNormSent(n_units, eps=1e-3)
+        self.ln_3 = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, s, xy_mask, yy_mask):
         batch, units, length = e.shape
 
+        e = self.ln_1(e)
         sub = self.self_attention(e, mask=yy_mask)
         e = e + self.dropout1(sub)
-        if self.layer_norm:
-            e = self.ln_1(e)
 
         if self.pos_attention:
+            e = self.ln_pos(e)
             p = self.position_encoding_block[:, :, :length]
             p = p.expand(batch, units, length)
             sub = self.pos_attention(p, e, mask=yy_mask)
             e = e + self.dropout_pos(sub)
-            if self.layer_norm:
-                e = self.ln_pos(e)
 
+        e = self.ln_2(e)
         sub = self.source_attention(e, s, mask=xy_mask)
         e = e + self.dropout2(sub)
-        if self.layer_norm:
-            e = self.ln_2(e)
 
+        e = self.ln_3(e)
         sub = self.feed_forward(e)
         e = e + self.dropout3(sub)
-        if self.layer_norm:
-            e = self.ln_3(e)
         return e
 
 
@@ -279,10 +264,12 @@ class Encoder(nn.Module):
         for i in range(1, n_layers + 1):
             layer = EncoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, n_hidden)
             self.layers.append(layer)
+        self.ln = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, xx_mask):
         for layer in self.layers:
             e = layer(e, xx_mask)
+        e = self.ln(e)
         return e
 
 
@@ -294,10 +281,12 @@ class Decoder(nn.Module):
         for i in range(1, n_layers + 1):
             layer = DecoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention, n_hidden)
             self.layers.append(layer)
+        self.ln = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, source, xy_mask, yy_mask):
         for layer in self.layers:
             e = layer(e, source, xy_mask, yy_mask)
+        e = self.ln(e)
         return e
 
 

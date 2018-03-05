@@ -39,7 +39,7 @@ def get_train_args():
     parser.add_argument('--no_bleu', dest='no_bleu', action='store_true',
                         help='Skip BLEU calculation')
     parser.set_defaults(no_bleu=False)
-    parser.add_argument('--label_smoothing', type=float, default=0.0,
+    parser.add_argument('--label_smoothing', type=float, default=0.1,
                         help='Use label smoothing for cross-entropy')
     parser.add_argument('--embed-position', action='store_true',
                         help='Use position embedding rather than sinusoid')
