@@ -22,7 +22,11 @@ else:
 
 
 def to_cpu(x):
-    return x.data.cpu().tolist()[0]
+    try:
+        y = x.data.cpu().tolist()[0]
+    except:
+        y = x.data.cpu().tolist()
+    return y
 
 
 class Accuracy(object):
