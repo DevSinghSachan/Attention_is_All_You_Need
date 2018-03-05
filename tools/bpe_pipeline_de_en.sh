@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Author : Thamme Gowda
-# Created : Nov 06, 2017
 
 TF="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 
@@ -13,23 +11,17 @@ OUT="tf-runs/$NAME"
 DATA="/projects/tir1/users/dsachan/Attention_is_All_You_Need/data/de_en"
 TRAIN_SRC=$DATA/train.de
 TRAIN_TGT=$DATA/train.en
-VALID_SRC=$DATA/dev.de
-VALID_TGT=$DATA/dev.en
 TEST_SRC=$DATA/test.de
 TEST_TGT=$DATA/test.en
 
-BPE="" # default
+head -500 $DATA/dev.de > $DATA/dev.small.de
+head -500 $DATA/dev.en > $DATA/dev.small.en
+VALID_SRC=$DATA/dev.small.de
+VALID_TGT=$DATA/dev.small.en
+
 BPE="src+tgt" # src, tgt, src+tgt
-
-# applicable only when BPE="src" or "src+tgt"
-BPE_SRC_OPS=32000
-
-# applicable only when BPE="tgt" or "src+tgt"
-BPE_TGT_OPS=32000
-
-GPUARG="" # default
+BPE_OPS=20000
 GPUARG="0"
-
 
 #====== EXPERIMENT BEGIN ======
 
@@ -62,14 +54,18 @@ echo "Output dir = $OUT"
 
 
 echo "Step 1a: Preprocess inputs"
-if [[ "$BPE" == *"src"* ]]; then
-    echo "BPE on source"
-    # Here we could use more  monolingual data
-    $TF/tools/learn_bpe.py -s $BPE_SRC_OPS < $TRAIN_SRC > $OUT/data/bpe-codes.src
 
-    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.src <  $TRAIN_SRC > $OUT/data/train.src
-    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.src <  $VALID_SRC > $OUT/data/valid.src
-    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.src <  $TEST_SRC > $OUT/data/test.src
+if [[ "$BPE" == *"src"* ]]; then
+    echo "Learning BPE on source and target combined"
+    cat ${TRAIN_SRC} ${TRAIN_TGT} | $TF/tools/learn_bpe.py -s ${BPE_OPS} > $OUT/data/bpe-codes.${BPE_OPS}
+fi
+
+
+if [[ "$BPE" == *"src"* ]]; then
+    echo "Applying BPE on source"
+    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $TRAIN_SRC > $OUT/data/train.src
+    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $VALID_SRC > $OUT/data/valid.src
+    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $TEST_SRC > $OUT/data/test.src
 else
     ln -sf $TRAIN_SRC $OUT/data/train.src
     ln -sf $VALID_SRC $OUT/data/valid.src
@@ -78,12 +74,9 @@ fi
 
 
 if [[ "$BPE" == *"tgt"* ]]; then
-    echo "BPE on target"
-    # Here we could use more  monolingual data
-    $TF/tools/learn_bpe.py -s $BPE_SRC_OPS < $TRAIN_TGT > $OUT/data/bpe-codes.tgt
-
-    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.tgt <  $TRAIN_TGT > $OUT/data/train.tgt
-    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.tgt <  $VALID_TGT > $OUT/data/valid.tgt
+    echo "Applying BPE on target"
+    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $TRAIN_TGT > $OUT/data/train.tgt
+    $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $VALID_TGT > $OUT/data/valid.tgt
 
     # We dont touch the test References, No BPE on them!
     ln -sf $TEST_TGT $OUT/data/test.tgt
@@ -113,7 +106,7 @@ if [[ ! -z $GPUARG ]]; then
 fi
 
 CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt --data processed \
---batchsize 128 --tied --beam 5 --dropout 0.2 --epoch 40 --layers 1 --multi_heads 8 --gpu 0 \
+--batchsize 128 --tied --beam 5 --dropout 0.2 --epoch 40 --layers 6 --multi_heads 8 --gpu 0 \
 --dev_hyp $OUT/test/valid.out --test_hyp $OUT/test/test.out"
 
 echo "Training command :: $CMD"

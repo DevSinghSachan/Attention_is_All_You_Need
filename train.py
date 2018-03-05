@@ -185,7 +185,10 @@ def main():
         print('Validation accuracy: %g' % valid_stats.accuracy())
 
         if not args.no_bleu:
-            score, _ = CalculateBleu(model, dev_data, 'val/main/bleu', batch=args.batchsize // 4)()
+            if epoch < args.epoch - 10:
+                score, _ = CalculateBleu(model, dev_data, 'val/main/bleu', batch=args.batchsize // 4)()
+            else:
+                score, _ = CalculateBleu(model, dev_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
 
             if score >= best_score:
                 best_score = score

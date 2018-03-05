@@ -19,7 +19,7 @@ The code in this repository implements the following features:
 * Warm-up steps based training of Adam Optimizer
 * LayerNorm and residual connections after each sublayer
 * Shared weights of target embedding and decoder softmax layer
-* Beam Search (Experimental)
+* Beam Search
 
 ## Software Requirements
 * Python 3.6
@@ -62,7 +62,7 @@ Dataset Statistics included in `data` directory are:
 
 ## Experiments
 All the experiments were performed on a modern Titan-Xp GPU with 12GB RAM.
-BLEU Scores are computed using Greedy Decoding.
+BLEU Scores are computed using Beam Search.
 
 ### Ja->En translation
 [Dataset URL](https://github.com/neulab/xnmt/tree/master/examples/data)
