@@ -22,11 +22,11 @@ def get_train_args():
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--unit', '-u', type=int, default=512,
                         help='Number of units')
-    parser.add_argument('--layers', '-l', type=int, default=1,
+    parser.add_argument('--layers', '-l', type=int, default=6,
                         help='Number of layers')
     parser.add_argument('--multi_heads', type=int, default=8,
                         help='Number of heads in attention mechanism')
-    parser.add_argument('--dropout', '-d', type=float, default=0.2,
+    parser.add_argument('--dropout', '-d', type=float, default=0.1,
                         help='Dropout rate')
     parser.add_argument('--tied', dest='tied', action='store_true',
                         help='tie target word embedding and output softmax layer')
@@ -48,7 +48,7 @@ def get_train_args():
                              'annealing proposed in the paper')
     parser.set_defaults(use_fixed_lr=False)
 
-    parser.add_argument('--warmup_steps', type=float, default=4000,
+    parser.add_argument('--warmup_steps', type=float, default=16000,
                         help='warmup steps in Adam Optimizer Training')
     parser.add_argument('--lr', default=1e-4, type=float,
                         help='learning for default Adam training')
