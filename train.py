@@ -41,7 +41,7 @@ def tally_parameters(model):
     print('decoder: ', dec)
 
 
-def report_func(epoch, batch, num_batches, start_time, report_stats, report_every):
+def report_func(epoch, batch, num_batches, start_time, report_stats, report_every, grad_norm):
     """
     This is the user-defined batch-level training progress
     report function.
@@ -56,7 +56,7 @@ def report_func(epoch, batch, num_batches, start_time, report_stats, report_ever
         report_stats(Statistics): updated Statistics instance.
     """
     if batch % report_every == -1 % report_every:
-        report_stats.output(epoch, batch+1, num_batches, start_time)
+        report_stats.output(epoch, batch+1, num_batches, start_time, grad_norm)
         report_stats = utils.Statistics()
 
     return report_stats
@@ -120,17 +120,16 @@ def main():
                             layer_norm=True,
                             tied=args.tied,
                             pos_attention=args.pos_attention)
-
     tally_parameters(model)
 
     if args.gpu >= 0:
         model.cuda(args.gpu)
     print(model)
 
-    if not args.use_fixed_lr:
-        optimizer = optim.TransformerAdamTrainer(model, warmup_steps=args.warmup_steps)
-    else:
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
+    # if not args.use_fixed_lr:
+    optimizer = optim.TransformerAdamTrainer(model, warmup_steps=args.warmup_steps)
+    # else:
+    #     optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 
     iter_per_epoch = len(train_data) // args.batchsize
     print('Number of iter/epoch =', iter_per_epoch)
@@ -145,6 +144,7 @@ def main():
         train_stats = utils.Statistics()
         valid_stats = utils.Statistics()
 
+        grad_norm = 0
         for num_steps, train_batch in enumerate(train_iter):
             model.train()
             optimizer.zero_grad()
@@ -158,13 +158,15 @@ def main():
             loss, stat = model(*in_arrays)
             loss.backward()
 
-            if args.use_fixed_lr:
-                norm = torch.nn.utils.clip_grad_norm(model.parameters(), args.max_norm)
+            norm = utils.grad_norm(model.parameters())
+            grad_norm += norm
+            # if args.use_fixed_lr:
+            #     norm = torch.nn.utils.clip_grad_norm(model.parameters(), args.max_norm)
             optimizer.step()
 
             report_stats.update(stat)
             train_stats.update(stat)
-            report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats, args.report_every)
+            report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats, args.report_every, grad_norm/(num_steps+1))
 
         # Check the validation accuracy of prediction after every epoch
         test_iter = data.iterator.pool(dev_data, args.batchsize // 4,

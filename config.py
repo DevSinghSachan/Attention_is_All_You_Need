@@ -43,23 +43,23 @@ def get_train_args():
                         help='Use label smoothing for cross-entropy')
     parser.add_argument('--embed-position', action='store_true',
                         help='Use position embedding rather than sinusoid')
-    parser.add_argument('--use_fixed_lr', dest='use_fixed_lr', action='store_true',
-                        help='Use fixed learning rate rather than the ' +
-                             'annealing proposed in the paper')
-    parser.set_defaults(use_fixed_lr=False)
+
+    # parser.add_argument('--use_fixed_lr', dest='use_fixed_lr', action='store_true',
+    #                     help='Use fixed learning rate rather than the ' +
+    #                          'annealing proposed in the paper')
+    # parser.set_defaults(use_fixed_lr=False)
+    # parser.add_argument('--max_norm', default=-1, type=float,
+    #                     help='maximum L2 norm')
+    # parser.add_argument('--debug', dest='debug', action='store_true',
+    #                     help="print progress bar")
+    # parser.set_defaults(debug=False)
 
     parser.add_argument('--warmup_steps', type=float, default=16000,
                         help='warmup steps in Adam Optimizer Training')
     parser.add_argument('--lr', default=1e-4, type=float,
                         help='learning for default Adam training')
-    parser.add_argument('--max_norm', default=-1, type=float,
-                        help='maximum L2 norm')
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
-    parser.add_argument('--debug', dest='debug', action='store_true',
-                        help="print progress bar")
-    parser.set_defaults(debug=False)
-
     parser.add_argument('--model_file', default='results/model.ckpt', type=str,
                         help='path to save the model')
 

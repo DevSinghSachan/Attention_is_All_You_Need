@@ -169,7 +169,7 @@ class Statistics(object):
     def elapsed_time(self):
         return time.time() - self.start_time
 
-    def output(self, epoch, batch, n_batches, start):
+    def output(self, epoch, batch, n_batches, start, norm):
         """Write out statistics to stdout.
 
         Args:
@@ -180,13 +180,13 @@ class Statistics(object):
         """
         t = self.elapsed_time()
         print(("Epoch %2d, %5d/%5d; acc: %6.2f; ppl: %6.2f; " +
-               "%3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed") %
+               "%3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed; norm %1.4f") %
               (epoch, batch,  n_batches,
                self.accuracy(),
                self.ppl(),
                self.n_src_words / (t + 1e-5),
                self.n_words / (t + 1e-5),
-               time.time() - start))
+               time.time() - start, norm))
         sys.stdout.flush()
 
     def log(self, prefix, experiment, lr):
@@ -195,3 +195,25 @@ class Statistics(object):
         experiment.add_scalar_value(prefix + "_accuracy", self.accuracy())
         experiment.add_scalar_value(prefix + "_tgtper",  self.n_words / t)
         experiment.add_scalar_value(prefix + "_lr", lr)
+
+
+def grad_norm(parameters, norm_type=2):
+    r"""The norm is computed over all gradients together, as if they were
+    concatenated into a single vector.
+
+    Arguments:
+        parameters (Iterable[Variable]): an iterable of Variables that will have
+            gradients normalized
+        norm_type (float or int): type of the used p-norm.
+
+    Returns:
+        Total norm of the parameters (viewed as a single vector).
+    """
+    parameters = list(filter(lambda p: p.grad is not None, parameters))
+    norm_type = float(norm_type)
+    total_norm = 0
+    for p in parameters:
+        param_norm = p.grad.data.norm(norm_type)
+        total_norm += param_norm ** norm_type
+    total_norm = total_norm ** (1. / norm_type)
+    return total_norm

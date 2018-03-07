@@ -7,11 +7,26 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
+import math
+import scipy.stats as stats
+
 import utils
 import search_strategy
 import preprocess
 
 cudnn.benchmark = True
+
+
+def truncated_normal(shape, mean=0.0, stddev=1.0, dtype=np.float32):
+    """Outputs random values from a truncated normal distribution.
+    The generated values follow a normal distribution with specified mean and standard deviation,
+    except that values whose magnitude is more than 2 standard deviations from the mean are dropped and re-picked.
+    API from: https://www.tensorflow.org/api_docs/python/tf/truncated_normal"""
+    lower = -2 * stddev + mean
+    upper = 2 * stddev + mean
+    X = stats.truncnorm((lower - mean)/stddev, (upper - mean)/stddev, loc=mean, scale=stddev)
+    values = X.rvs(size=shape)
+    return torch.from_numpy(values.astype(dtype))
 
 
 class LayerNorm(nn.Module):
@@ -87,6 +102,13 @@ class LinearSent(nn.Module):
         super(LinearSent, self).__init__()
         self.L = nn.Linear(input_dim, output_dim, bias=bias)
         self.L.weight.data.uniform_(-3./input_dim, 3./input_dim)
+
+        # Using Xavier Initialization
+        # self.L.weight.data.uniform_(-math.sqrt(6.0 / (input_dim + output_dim)),
+        #                             math.sqrt(6.0 / (input_dim + output_dim)))
+        # He Initialization
+        # self.L.weight.data.uniform_(-math.sqrt(6.0 / input_dim), math.sqrt(6.0 / input_dim))
+
         if bias:
             self.L.bias.data.fill_(0.)
         self.output_dim = output_dim
@@ -187,13 +209,13 @@ class FeedForwardLayer(nn.Module):
 class EncoderLayer(nn.Module):
     def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, n_hidden=2048):
         super(EncoderLayer, self).__init__()
+        self.ln_1 = LayerNormSent(n_units, eps=1e-3)
         self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
-        self.ln_1 = LayerNormSent(n_units, eps=1e-3)
 
+        self.ln_2 = LayerNormSent(n_units, eps=1e-3)
         self.feed_forward = FeedForwardLayer(n_units, n_hidden)
         self.dropout2 = nn.Dropout(dropout)
-        self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, xx_mask):
         e = self.ln_1(e)
@@ -212,26 +234,26 @@ class DecoderLayer(nn.Module):
         super(DecoderLayer, self).__init__()
         self.pos_attention = pos_attention
 
+        self.ln_1 = LayerNormSent(n_units, eps=1e-3)
         self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout1 = nn.Dropout(dropout)
-        self.ln_1 = LayerNormSent(n_units, eps=1e-3)
 
         if pos_attention:
             position_encoding_block = Transformer.initialize_position_encoding(500, n_units)
             self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block), requires_grad=False)
             self.register_parameter("Position Encoding Block", self.position_encoding_block)
 
+            self.ln_pos = LayerNormSent(n_units, eps=1e-3)
             self.pos_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout, pos_attn=True)
             self.dropout_pos = nn.Dropout(dropout)
-            self.ln_pos = LayerNormSent(n_units, eps=1e-3)
 
+        self.ln_2 = LayerNormSent(n_units, eps=1e-3)
         self.source_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
         self.dropout2 = nn.Dropout(dropout)
-        self.ln_2 = LayerNormSent(n_units, eps=1e-3)
 
+        self.ln_3 = LayerNormSent(n_units, eps=1e-3)
         self.feed_forward = FeedForwardLayer(n_units, n_hidden)
         self.dropout3 = nn.Dropout(dropout)
-        self.ln_3 = LayerNormSent(n_units, eps=1e-3)
 
     def forward(self, e, s, xy_mask, yy_mask):
         batch, units, length = e.shape
@@ -261,7 +283,7 @@ class Encoder(nn.Module):
     def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, n_hidden=2048):
         super(Encoder, self).__init__()
         self.layers = torch.nn.ModuleList()
-        for i in range(1, n_layers + 1):
+        for i in range(n_layers):
             layer = EncoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, n_hidden)
             self.layers.append(layer)
         self.ln = LayerNormSent(n_units, eps=1e-3)
@@ -278,7 +300,7 @@ class Decoder(nn.Module):
                  pos_attention=False, n_hidden=2048):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
-        for i in range(1, n_layers + 1):
+        for i in range(n_layers):
             layer = DecoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention, n_hidden)
             self.layers.append(layer)
         self.ln = LayerNormSent(n_units, eps=1e-3)
@@ -297,8 +319,16 @@ class Transformer(nn.Module):
         super(Transformer, self).__init__()
         self.embed_x = nn.Embedding(n_source_vocab, n_units, padding_idx=0)
         self.embed_y = nn.Embedding(n_target_vocab, n_units, padding_idx=0)
-        self.embed_x.weight.data.uniform_(-3. / n_source_vocab, 3. / n_source_vocab)
-        self.embed_y.weight.data.uniform_(-3. / n_target_vocab, 3. / n_target_vocab)
+
+        # Initialize the embedding parameters (Default)
+        # self.embed_x.weight.data.uniform_(-3. / n_source_vocab, 3. / n_source_vocab)
+        # self.embed_y.weight.data.uniform_(-3. / n_target_vocab, 3. / n_target_vocab)
+
+        # Using Truncated Normal Initializer (default in Tensorflow)
+        self.embed_x.weight.data = truncated_normal(shape=(n_source_vocab, n_units),
+                                                    stddev=1.0/math.sqrt(n_units))
+        self.embed_y.weight.data = truncated_normal(shape=(n_target_vocab, n_units),
+                                                    stddev=1.0 / math.sqrt(n_units))
 
         self.embed_dropout = nn.Dropout(dropout)
         self.n_hidden = n_units * 4
@@ -415,7 +445,7 @@ class Transformer(nn.Module):
 
         # Encode Sources
         z_blocks = self.encoder(ex_block, xx_mask)
-        # [(batch, n_units, x_length), ...]
+        # (batch, n_units, x_length)
 
         # Encode Targets with Sources (Decode without Output)
         h_block = self.decoder(ey_block, z_blocks, xy_mask, yy_mask)
