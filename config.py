@@ -16,6 +16,8 @@ def get_train_args():
     # Training Options
     parser.add_argument('--batchsize', '-b', type=int, default=10,
                         help='Number of sentences in each mini-batch')
+    parser.add_argument('--wbatchsize', '-wb', type=int, default=2400,
+                        help='Number of words in each mini-batch')
     parser.add_argument('--epoch', '-e', type=int, default=40,
                         help='Number of sweeps over the dataset to train')
     parser.add_argument('--gpu', '-g', type=int, default=-1,
@@ -43,13 +45,9 @@ def get_train_args():
                         help='Use label smoothing for cross-entropy')
     parser.add_argument('--embed-position', action='store_true',
                         help='Use position embedding rather than sinusoid')
+    parser.add_argument('--max_length', type=int, default=500,
+                        help='Maximum Possible length for a sequence')
 
-    # parser.add_argument('--use_fixed_lr', dest='use_fixed_lr', action='store_true',
-    #                     help='Use fixed learning rate rather than the ' +
-    #                          'annealing proposed in the paper')
-    # parser.set_defaults(use_fixed_lr=False)
-    # parser.add_argument('--max_norm', default=-1, type=float,
-    #                     help='maximum L2 norm')
     # parser.add_argument('--debug', dest='debug', action='store_true',
     #                     help="print progress bar")
     # parser.set_defaults(debug=False)
@@ -62,6 +60,8 @@ def get_train_args():
                         help='Directory to output the result')
     parser.add_argument('--model_file', default='results/model.ckpt', type=str,
                         help='path to save the model')
+    parser.add_argument('--eval_steps', default=1000, type=int,
+                        help='Number of steps for evaluation')
 
     parser.add_argument('--dev_hyp', default='results/valid.out', type=str, help='path to save dev set hypothesis')
     parser.add_argument('--test_hyp', default='results/test.out', type=str, help='path to save test set hypothesis')

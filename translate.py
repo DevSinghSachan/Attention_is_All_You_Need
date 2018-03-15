@@ -59,7 +59,7 @@ def main():
     model = torch.load(args.model_file)
     model.cuda(0)
 
-    hyp = TranslateText(model, source_data, batch=1, beam_size=args.beam_size)()
+    hyp = TranslateText(model, source_data, batch=args.batchsize // 4, beam_size=args.beam_size)()
     save_output(hyp, target_id2w, args.output)
 
 

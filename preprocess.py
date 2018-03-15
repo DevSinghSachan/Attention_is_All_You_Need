@@ -7,6 +7,7 @@ import numpy as np
 import progressbar
 import json
 import os
+import pickle
 from collections import namedtuple
 from config import get_preprocess_args
 
@@ -88,44 +89,45 @@ if __name__ == "__main__":
 
     # Vocab Construction
     source_path = os.path.join(args.input, args.source_train)
-    source_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + count_words(source_path, args.source_vocab, args.tok)
     target_path = os.path.join(args.input, args.target_train)
-    target_vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + count_words(target_path, args.target_vocab, args.tok)
 
-    source_w2id = {word: index for index, word in enumerate(source_vocab)}
-    target_w2id = {word: index for index, word in enumerate(target_vocab)}
+    src_cntr = count_words(source_path, args.source_vocab, args.tok)
+    trg_cntr = count_words(target_path, args.target_vocab, args.tok)
+    all_words = list(set(src_cntr + trg_cntr))
+
+    vocab = ['<pad>', '<eos>', '<unk>', '<bos>'] + all_words
+
+    w2id = {word: index for index, word in enumerate(vocab)}
 
     # Train Dataset
-    source_data = make_dataset(source_path, source_w2id, args.tok)
-    target_data = make_dataset(target_path, target_w2id, args.tok)
+    source_data = make_dataset(source_path, w2id, args.tok)
+    target_data = make_dataset(target_path, w2id, args.tok)
     assert len(source_data) == len(target_data)
     train_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) < args.max_seq_length
                   and 0 < len(t) < args.max_seq_length]
 
     # Display corpus statistics
-    print("Source Vocab: {}".format(len(source_vocab)))
-    print("Target Vocab: {}".format(len(target_vocab)))
+    print("Vocab: {}".format(len(vocab)))
     print('Original training data size: %d' % len(source_data))
     print('Filtered training data size: %d' % len(train_data))
 
     # Valid Dataset
     source_path = os.path.join(args.input, args.source_valid)
-    source_data = make_dataset(source_path, source_w2id, args.tok)
+    source_data = make_dataset(source_path, w2id, args.tok)
     target_path = os.path.join(args.input, args.target_valid)
-    target_data = make_dataset(target_path, target_w2id, args.tok)
+    target_data = make_dataset(target_path, w2id, args.tok)
     assert len(source_data) == len(target_data)
     valid_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
 
     # Test Dataset
     source_path = os.path.join(args.input, args.source_test)
-    source_data = make_dataset(source_path, source_w2id, args.tok)
+    source_data = make_dataset(source_path, w2id, args.tok)
     target_path = os.path.realpath(os.path.join(args.input, args.target_test))
-    target_data = make_dataset(target_path, target_w2id, args.tok)
+    target_data = make_dataset(target_path, w2id, args.tok)
     assert len(source_data) == len(target_data)
     test_data = [(s, t) for s, t in six.moves.zip(source_data, target_data) if 0 < len(s) and 0 < len(t)]
 
-    target_id2w = {i: w for w, i in target_w2id.items()}
-    source_id2w = {i: w for w, i in source_w2id.items()}
+    id2w = {i: w for w, i in w2id.items()}
 
     # Save the dataset to numpy files
     np.save(os.path.join(args.input, args.save_data + '.train.npy'), train_data)
@@ -133,8 +135,5 @@ if __name__ == "__main__":
     np.save(os.path.join(args.input, args.save_data + '.test.npy'), test_data)
 
     # Save the vocab in json
-    with io.open(os.path.join(args.input, args.save_data + '.vocab.src.json'), 'w', encoding='utf-8') as f:
-        json.dump(source_id2w, f, sort_keys=True, indent=2)
-
-    with io.open(os.path.join(args.input, args.save_data + '.vocab.trg.json'), 'w', encoding='utf-8') as f:
-        json.dump(target_id2w, f, sort_keys=True, indent=2)
+    with open(os.path.join(args.input, args.save_data + '.vocab.pickle'), 'wb') as f:
+        pickle.dump(id2w, f, protocol=pickle.HIGHEST_PROTOCOL)

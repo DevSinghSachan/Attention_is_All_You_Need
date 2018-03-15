@@ -1,25 +1,21 @@
-from __future__ import division, generators
-
+import numpy as np
+import collections
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
-import numpy as np
+
 import utils
 import preprocess
 
 
-"""This code was adapted from XNMT open-source toolkit on 01/10/2018. 
-URL: https://github.com/neulab/xnmt/blob/master/xnmt/search_strategy.py"""
-
-
 class PolynomialNormalization(object):
-    """Dividing by the length (raised to some power (default 1))"""
-    def __init__(self, m=1, apply_during_search=False):
-        self.m = m
+    """Dividing by the length (raised to some power (default 0.6))"""
+    def __init__(self, alpha=0.6, apply_during_search=True):
+        self.alpha = alpha
         self.apply_during_search = apply_during_search
 
     def lp(self, len):
-        return pow(5 + len, self.m) / pow(5 + 1, self.m)
+        return pow(5 + len, self.alpha) / pow(5 + 1, self.alpha)
 
     def normalize_completed(self, completed_hyps, src_length=None):
         if not self.apply_during_search:
@@ -33,72 +29,126 @@ class PolynomialNormalization(object):
             return score_so_far + score_to_add
 
 
+def update_beam_state(outs, total_score, topk, topk_score, eos_id, alpha, x_block, z_blocks):
+    full = outs.size()[0]
+    prev_full, k = topk.size()
+    batch = full // k
+    prev_k = prev_full // batch
+    assert (prev_k in [1, k])
+
+    if total_score is None:
+        total_score = topk_score
+    else:
+        is_end = torch.max(outs == eos_id, dim=1)[0]
+        is_end = is_end.view(-1, 1).expand_as(topk_score)
+        bias = torch.zeros_like(topk_score).type(utils.FLOAT_TYPE)
+        bias[:, 1:] = -10000.  # remove ended cands except for a consequence
+
+        obj = PolynomialNormalization(alpha=alpha)
+        normalized_total_score = obj.normalize_partial(total_score[:, None],
+                                                       topk_score,
+                                                       outs.size()[1])
+
+        # total_score = torch.where(Variable(is_end),
+        #                           Variable(total_score[:, None] + bias),
+        #                           Variable(total_score[:, None] + topk_score))
+
+        total_score = torch.where(Variable(is_end),
+                                  Variable(total_score[:, None] + bias),
+                                  Variable(normalized_total_score))
+
+        total_score = total_score.data
+        assert (torch.max(total_score) < 0.)
+
+        topk = torch.where(Variable(is_end),
+                           Variable(torch.LongTensor([eos_id]).type(utils.LONG_TYPE)),
+                           Variable(topk))  # this is not required
+        topk = topk.data
+
+    total_score = total_score.view((prev_full // prev_k, prev_k * k))
+    total_topk_score, argtopk = torch.topk(total_score, k)
+
+    assert (argtopk.size() == (prev_full // prev_k, k))
+    assert (total_topk_score.size() == (prev_full // prev_k, k))
+
+    total_topk = topk.take(argtopk + (torch.arange(prev_full // prev_k)[:, None] * prev_k * k).type(utils.LONG_TYPE))
+    total_topk = total_topk.view((full,))
+    total_topk_score = total_topk_score.view((full,))
+    argtopk = argtopk / k + (torch.arange(prev_full // prev_k)[:, None] * prev_k).type(utils.LONG_TYPE)
+    argtopk = argtopk.view((full,))
+
+    xss = torch.split(x_block, 1)
+    x_block = torch.cat([xss[i] for i in argtopk])
+
+    zss = torch.split(z_blocks, 1)
+    z_blocks = torch.cat([zss[i] for i in argtopk])
+
+    outs = torch.split(outs, 1)
+    outs = torch.cat([outs[i] for i in argtopk])
+    outs = torch.cat([outs, total_topk[:, None]], dim=1).type(utils.LONG_TYPE)
+
+    return outs, total_topk_score, x_block, z_blocks
+
+
+def finish_beam(outs, total_score, batchsize, eos_id):
+    k = outs.shape[0] // batchsize
+    result_batch = collections.defaultdict(lambda: {'outs': [], 'score': -1e8})
+    for i in range(batchsize):
+        for j in range(k):
+            score = total_score[i * k + j]
+            if result_batch[i]['score'] < score:
+                out = outs[i * k + j].tolist()
+                if eos_id in out:
+                    out = out[:out.index(eos_id)]
+                result_batch[i] = {'outs': out, 'score': score}
+
+    result_batch = [result for i, result in sorted(result_batch.items(), key=lambda x: x[0])]
+
+    id_list, score_list = [], []
+    for item in result_batch:
+        id_list.append(item['outs'])
+        score_list.append(item['score'])
+    return id_list, score_list
+
+
 class BeamSearch(object):
-    def __init__(self, beam_size=5, max_len=50):
-        self.beam_size = beam_size
-        self.max_len = max_len
-        self.len_norm = PolynomialNormalization(apply_during_search=True)
-        self.entrs = []
-
-    class Hypothesis:
-        def __init__(self, score, id_list):
-            self.score = score
-            # self.state = state
-            self.id_list = id_list
-
-        def __str__(self):
-            return "hypo S=%s ids=%s" % (self.score, self.id_list)
-
-        def __repr__(self):
-            return "hypo S=%s |ids|=%s" % (self.score, len(self.id_list))
+    def __init__(self, beam_size=5, max_len=50, alpha=0.6):
+        self.max_decode_length = max_len
+        self.k = beam_size
+        self.alpha = alpha
 
     def generate_output(self, model, x_block):
-        """
-    :param decoder: decoder.Decoder subclass
-    :param attender: attender.Attender subclass
-    :param output_embedder: embedder.Embedder subclass
-    :param dec_state: The decoder state
-    :param src_length: length of src sequence, required for some types of length normalization
-    :returns: (id list, score)
-    """
-
         x_block = utils.source_pad_concat_convert(x_block, device=None)
-        batch, x_length = x_block.shape
-        assert batch == 1, 'Batch processing is not supported now.'
+        batchsize, x_length = x_block.shape
+
         x_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE))
+        bos_array = np.array([[preprocess.Vocab_Pad.BOS]] * batchsize, 'i')
+        y_block = Variable(torch.LongTensor(bos_array)).type(utils.LONG_TYPE)
 
-        active_hyp = [self.Hypothesis(0, [])]
-        completed_hyp = []
-        length = 0
+        outs = torch.LongTensor([[preprocess.Vocab_Pad.BOS]] * batchsize * self.k).type(utils.LONG_TYPE)
+        total_score, z_blocks = None, None
 
-        while len(completed_hyp) < self.beam_size and length < self.max_len:
-            new_set = []
-            for hyp in active_hyp:
-                if length > 0:  # don't feed in the initial start-of-sentence token
-                    if hyp.id_list[-1] == preprocess.Vocab_Pad.EOS:
-                        hyp.id_list = hyp.id_list[:-1]
-                        completed_hyp.append(hyp)
-                        continue
+        for i in range(self.max_decode_length):
+            log_prob_tail, z_blocks = model(x_block,
+                                            y_block,
+                                            y_out_block=None,
+                                            get_prediction=True,
+                                            z_blocks=z_blocks)
+            topk_score, topk = torch.topk(F.log_softmax(log_prob_tail, dim=1).data, self.k)
+            assert (torch.max(topk_score) <= 0.)
 
-                y_block = Variable(torch.LongTensor([[preprocess.Vocab_Pad.BOS] + hyp.id_list])).type(utils.LONG_TYPE)
+            outs, total_score, x_block, z_blocks = update_beam_state(outs,
+                                                                     total_score,
+                                                                     topk,
+                                                                     topk_score,
+                                                                     preprocess.Vocab_Pad.EOS,
+                                                                     self.alpha,
+                                                                     x_block.data,
+                                                                     z_blocks.data)
+            assert (torch.max(total_score < 0.)), i
+            y_block, x_block, z_blocks = Variable(outs), Variable(x_block), Variable(z_blocks)
 
-                log_prob_tail = model(x_block, y_block, y_out_block=None, get_prediction=True)
-                score = F.log_softmax(log_prob_tail, dim=1).data.cpu().numpy()[0]
-                top_ids = np.argpartition(score, max(-len(score), -self.beam_size))[-self.beam_size:]
-
-                for cur_id in top_ids.tolist():
-                    new_list = list(hyp.id_list)
-                    new_list.append(cur_id)
-                    log_score = self.len_norm.normalize_partial(hyp.score, score[cur_id], len(new_list))
-                    new_set.append(self.Hypothesis(log_score, new_list))
-            length += 1
-
-            active_hyp = sorted(new_set, key=lambda x: x.score, reverse=True)[:self.beam_size]
-
-        if len(completed_hyp) == 0:
-            completed_hyp = active_hyp
-
-        self.len_norm.normalize_completed(completed_hyp, x_length)
-
-        result = sorted(completed_hyp, key=lambda x: x.score, reverse=True)[0]
-        return result.id_list, result.score
+            if torch.max(outs == preprocess.Vocab_Pad.EOS, 1)[0].sum() == outs.shape[0]:
+                break # all cands meet eos, end the loop
+        result = finish_beam(outs[:, 1:], total_score, batchsize, preprocess.Vocab_Pad.EOS)
+        return result

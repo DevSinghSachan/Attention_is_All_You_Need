@@ -1,6 +1,4 @@
 # encoding: utf-8
-
-from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -13,6 +11,7 @@ import scipy.stats as stats
 import utils
 import search_strategy
 import preprocess
+from expert_utils import PadRemover
 
 cudnn.benchmark = True
 
@@ -24,15 +23,24 @@ def truncated_normal(shape, mean=0.0, stddev=1.0, dtype=np.float32):
     API from: https://www.tensorflow.org/api_docs/python/tf/truncated_normal"""
     lower = -2 * stddev + mean
     upper = 2 * stddev + mean
-    X = stats.truncnorm((lower - mean)/stddev, (upper - mean)/stddev, loc=mean, scale=stddev)
+    X = stats.truncnorm((lower - mean) / stddev, (upper - mean) / stddev, loc=mean, scale=stddev)
     values = X.rvs(size=shape)
     return torch.from_numpy(values.astype(dtype))
+
+
+class TiedLinear(object):
+    def __init__(self, param):
+        self.weight = param
+
+    def __call__(self, h):
+        return F.linear(h, self.weight)
 
 
 class LayerNorm(nn.Module):
     """Layer normalization module.
     Code adapted from OpenNMT-py open-source toolkit on 08/01/2018:
     URL: https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/modules/UtilClass.py#L24"""
+
     def __init__(self, d_hid, eps=1e-3):
         super(LayerNorm, self).__init__()
         self.eps = eps
@@ -67,7 +75,7 @@ def sentence_block_embed(embed, x):
     return e
 
 
-def seq_func(func, x, reconstruct_shape=True):
+def seq_func(func, x, reconstruct_shape=True, pad_remover=None):
     """Change implicitly function's input x from ndim=3 to ndim=2
 
     :param func: function to be applied to input x
@@ -76,8 +84,16 @@ def seq_func(func, x, reconstruct_shape=True):
     :return: Tensor of shape (batchsize, dimension, sentence_length) or (batchsize x sentence_length, dimension)
     """
     batch, units, length = x.shape
+
     e = torch.transpose(x, 1, 2).contiguous().view(batch * length, units)
+    if pad_remover:
+        e = pad_remover.remove(e)
+
     e = func(e)
+
+    if pad_remover:
+        e = pad_remover.restore(e)
+
     if not reconstruct_shape:
         return e
     out_units = e.shape[1]
@@ -88,6 +104,7 @@ def seq_func(func, x, reconstruct_shape=True):
 
 class LayerNormSent(LayerNorm):
     """Position-wise layer-normalization layer for array of shape (batchsize, dimension, sentence_length)."""
+
     def __init__(self, n_units, eps=1e-3):
         super(LayerNormSent, self).__init__(n_units, eps=eps)
 
@@ -98,10 +115,11 @@ class LayerNormSent(LayerNorm):
 
 class LinearSent(nn.Module):
     """Position-wise Linear Layer for sentence block. array of shape (batchsize, dimension, sentence_length)."""
+
     def __init__(self, input_dim, output_dim, bias=True):
         super(LinearSent, self).__init__()
         self.L = nn.Linear(input_dim, output_dim, bias=bias)
-        self.L.weight.data.uniform_(-3./input_dim, 3./input_dim)
+        self.L.weight.data.uniform_(-3. / input_dim, 3. / input_dim)
 
         # Using Xavier Initialization
         # self.L.weight.data.uniform_(-math.sqrt(6.0 / (input_dim + output_dim)),
@@ -113,11 +131,11 @@ class LinearSent(nn.Module):
             self.L.bias.data.fill_(0.)
         self.output_dim = output_dim
 
-    def forward(self, x):
+    def forward(self, x, pad_remover=None):
         # output = self.L.weight.matmul(x)
         # if self.L.bias is not None:
         #    output += self.L.bias.unsqueeze(-1)
-        output = seq_func(self.L, x)
+        output = seq_func(self.L, x, pad_remover=pad_remover)
         return output
 
 
@@ -126,7 +144,8 @@ class MultiHeadAttention(nn.Module):
     query-key scores is performed in all the heads together.
     Positional Attention is introduced in "Non-Autoregressive Neural Machine Translation" (https://arxiv.org/abs/1711.02281)
     """
-    def __init__(self, n_units, multi_heads=8, attn_dropout=True, dropout=0.2, pos_attn=False, attention_dropout=0.1):
+
+    def __init__(self, n_units, multi_heads=8, pos_attn=False, attention_dropout=0.1):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
         self.W_K = LinearSent(n_units, n_units, bias=False)
@@ -135,7 +154,6 @@ class MultiHeadAttention(nn.Module):
         self.h = multi_heads
         self.pos_attn = pos_attn
         self.scale_score = 1. / (n_units // multi_heads) ** 0.5
-        self.attn_dropout = attn_dropout
         self.dropout = nn.Dropout(attention_dropout)
 
     def forward(self, x, z=None, mask=None):
@@ -199,43 +217,43 @@ class FeedForwardLayer(nn.Module):
         self.dropout = nn.Dropout(relu_dropout)
         self.W_2 = LinearSent(n_hidden, n_units)
 
-    def forward(self, e):
-        e = self.W_1(e)
+    def forward(self, e, pad_remover=None):
+        e = self.W_1(e, pad_remover=pad_remover)
         e = self.dropout(self.act(e))
-        e = self.W_2(e)
+        e = self.W_2(e, pad_remover=pad_remover)
         return e
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, n_hidden=2048):
+    def __init__(self, n_units, multi_heads=8, dropout=0.2, n_hidden=2048):
         super(EncoderLayer, self).__init__()
         self.ln_1 = LayerNormSent(n_units, eps=1e-3)
-        self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
+        self.self_attention = MultiHeadAttention(n_units, multi_heads)
         self.dropout1 = nn.Dropout(dropout)
 
         self.ln_2 = LayerNormSent(n_units, eps=1e-3)
         self.feed_forward = FeedForwardLayer(n_units, n_hidden)
         self.dropout2 = nn.Dropout(dropout)
 
-    def forward(self, e, xx_mask):
+    def forward(self, e, xx_mask, pad_remover=None):
         e = self.ln_1(e)
         sub = self.self_attention(e, mask=xx_mask)
         e = e + self.dropout1(sub)
 
         e = self.ln_2(e)
-        sub = self.feed_forward(e)
+        sub = self.feed_forward(e, pad_remover=pad_remover)
         e = e + self.dropout2(sub)
         return e
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, pos_attention=False,
+    def __init__(self, n_units, multi_heads=8, dropout=0.2, pos_attention=False,
                  n_hidden=2048):
         super(DecoderLayer, self).__init__()
         self.pos_attention = pos_attention
 
         self.ln_1 = LayerNormSent(n_units, eps=1e-3)
-        self.self_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
+        self.self_attention = MultiHeadAttention(n_units, multi_heads)
         self.dropout1 = nn.Dropout(dropout)
 
         if pos_attention:
@@ -244,18 +262,18 @@ class DecoderLayer(nn.Module):
             self.register_parameter("Position Encoding Block", self.position_encoding_block)
 
             self.ln_pos = LayerNormSent(n_units, eps=1e-3)
-            self.pos_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout, pos_attn=True)
+            self.pos_attention = MultiHeadAttention(n_units, multi_heads, pos_attn=True)
             self.dropout_pos = nn.Dropout(dropout)
 
         self.ln_2 = LayerNormSent(n_units, eps=1e-3)
-        self.source_attention = MultiHeadAttention(n_units, multi_heads, attn_dropout, dropout)
+        self.source_attention = MultiHeadAttention(n_units, multi_heads)
         self.dropout2 = nn.Dropout(dropout)
 
         self.ln_3 = LayerNormSent(n_units, eps=1e-3)
         self.feed_forward = FeedForwardLayer(n_units, n_hidden)
         self.dropout3 = nn.Dropout(dropout)
 
-    def forward(self, e, s, xy_mask, yy_mask):
+    def forward(self, e, s, xy_mask, yy_mask, pad_remover):
         batch, units, length = e.shape
 
         e = self.ln_1(e)
@@ -274,77 +292,74 @@ class DecoderLayer(nn.Module):
         e = e + self.dropout2(sub)
 
         e = self.ln_3(e)
-        sub = self.feed_forward(e)
+        sub = self.feed_forward(e, pad_remover=pad_remover)
         e = e + self.dropout3(sub)
         return e
 
 
 class Encoder(nn.Module):
-    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False, n_hidden=2048):
+    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, n_hidden=2048):
         super(Encoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(n_layers):
-            layer = EncoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, n_hidden)
+            layer = EncoderLayer(n_units, multi_heads, dropout, n_hidden)
             self.layers.append(layer)
         self.ln = LayerNormSent(n_units, eps=1e-3)
 
-    def forward(self, e, xx_mask):
+    def forward(self, e, xx_mask, pad_remover):
         for layer in self.layers:
-            e = layer(e, xx_mask)
+            e = layer(e, xx_mask, pad_remover)
         e = self.ln(e)
         return e
 
 
 class Decoder(nn.Module):
-    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, layer_norm=True, attn_dropout=False,
-                 pos_attention=False, n_hidden=2048):
+    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, pos_attention=False, n_hidden=2048):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(n_layers):
-            layer = DecoderLayer(n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention, n_hidden)
+            layer = DecoderLayer(n_units, multi_heads, dropout, pos_attention, n_hidden)
             self.layers.append(layer)
         self.ln = LayerNormSent(n_units, eps=1e-3)
 
-    def forward(self, e, source, xy_mask, yy_mask):
+    def forward(self, e, source, xy_mask, yy_mask, pad_remover):
         for layer in self.layers:
-            e = layer(e, source, xy_mask, yy_mask)
+            e = layer(e, source, xy_mask, yy_mask, pad_remover)
         e = self.ln(e)
         return e
 
 
 class Transformer(nn.Module):
-    def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, multi_heads=8, dropout=0.1, max_length=500,
-                 label_smoothing=False, embed_position=False, layer_norm=True, tied=True, attn_dropout=False,
+    def __init__(self, n_layers, n_vocab, n_units, multi_heads=8, dropout=0.1, max_length=500,
+                 label_smoothing=False, embed_position=False, tied=True, attn_dropout=False,
                  pos_attention=False):
         super(Transformer, self).__init__()
-        self.embed_x = nn.Embedding(n_source_vocab, n_units, padding_idx=0)
-        self.embed_y = nn.Embedding(n_target_vocab, n_units, padding_idx=0)
+        self.embed_word = nn.Embedding(n_vocab, n_units, padding_idx=0)
 
         # Initialize the embedding parameters (Default)
-        # self.embed_x.weight.data.uniform_(-3. / n_source_vocab, 3. / n_source_vocab)
-        # self.embed_y.weight.data.uniform_(-3. / n_target_vocab, 3. / n_target_vocab)
+        # self.embed_word.weight.data.uniform_(-3. / n_source_vocab, 3. / n_source_vocab)
 
         # Using Truncated Normal Initializer (default in Tensorflow)
-        self.embed_x.weight.data = truncated_normal(shape=(n_source_vocab, n_units),
-                                                    stddev=1.0/math.sqrt(n_units))
-        self.embed_y.weight.data = truncated_normal(shape=(n_target_vocab, n_units),
-                                                    stddev=1.0 / math.sqrt(n_units))
+        self.embed_word.weight.data = truncated_normal(shape=(n_vocab, n_units),
+                                                       stddev=1.0 / math.sqrt(n_units))
 
         self.embed_dropout = nn.Dropout(dropout)
         self.n_hidden = n_units * 4
-        self.encoder = Encoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout, self.n_hidden)
-        self.decoder = Decoder(n_layers, n_units, multi_heads, dropout, layer_norm, attn_dropout, pos_attention, self.n_hidden)
+        self.encoder = Encoder(n_layers, n_units, multi_heads, dropout, self.n_hidden)
+        self.decoder = Decoder(n_layers, n_units, multi_heads, dropout, pos_attention, self.n_hidden)
 
         if embed_position:
             self.embed_pos = nn.Embedding(max_length, n_units, padding_idx=0)
 
-        self.affine = nn.Linear(n_units, n_target_vocab, bias=False)
         if tied:
-            self.affine.weight = self.embed_y.weight
+            # self.affine.weight = self.embed_word.weight
+            self.affine = TiedLinear(self.embed_word.weight)
+        else:
+            self.affine = nn.Linear(n_units, n_vocab, bias=False)
 
         self.n_layers = n_layers
         self.n_units = n_units
-        self.n_target_vocab = n_target_vocab
+        self.n_target_vocab = n_vocab
         self.dropout = dropout
         self.label_smoothing = label_smoothing
         self.scale_emb = self.n_units ** 0.5
@@ -429,30 +444,33 @@ class Transformer(nn.Module):
 
         return loss, stats
 
-    def forward(self, x_block, y_in_block, y_out_block, get_prediction=False):
+    def forward(self, x_block, y_in_block, y_out_block, get_prediction=False, z_blocks=None):
         batch, x_length = x_block.shape
         batch, y_length = y_in_block.shape
 
-        # Make Embedding
-        ex_block = self.make_input_embedding(self.embed_x, x_block)
-        ey_block = self.make_input_embedding(self.embed_y, y_in_block)
+        if z_blocks is None:
+            ex_block = self.make_input_embedding(self.embed_word, x_block)
+            xx_mask = self.make_attention_mask(x_block, x_block)
+            xpad_obj = PadRemover(x_block >= preprocess.Vocab_Pad.PAD)
+            # Encode Sources
+            z_blocks = self.encoder(ex_block, xx_mask, xpad_obj)
+            # (batch, n_units, x_length)
 
+        ey_block = self.make_input_embedding(self.embed_word, y_in_block)
         # Make Masks
-        xx_mask = self.make_attention_mask(x_block, x_block)
         xy_mask = self.make_attention_mask(y_in_block, x_block)
         yy_mask = self.make_attention_mask(y_in_block, y_in_block)
         yy_mask *= self.make_history_mask(y_in_block)
 
-        # Encode Sources
-        z_blocks = self.encoder(ex_block, xx_mask)
-        # (batch, n_units, x_length)
+        # Create PadRemover objects
+        ypad_obj = PadRemover(y_in_block >= preprocess.Vocab_Pad.PAD)
 
         # Encode Targets with Sources (Decode without Output)
-        h_block = self.decoder(ey_block, z_blocks, xy_mask, yy_mask)
+        h_block = self.decoder(ey_block, z_blocks, xy_mask, yy_mask, ypad_obj)
         # (batch, n_units, y_length)
 
         if get_prediction:
-            return self.output(h_block[:, :, -1])
+            return self.output(h_block[:, :, -1]), z_blocks
         else:
             return self.output_and_loss(h_block, y_out_block)
 
@@ -461,9 +479,7 @@ class Transformer(nn.Module):
             obj = search_strategy.BeamSearch(beam_size=beam, max_len=max_length)
             id_list, score = obj.generate_output(self, x_block)
             return id_list
-            # return self.translate_beam(x_block, max_length, beam)
 
-        # TODO: efficient inference by re-using result
         x_block = utils.source_pad_concat_convert(x_block, device=None)
         batch, x_length = x_block.shape
         y_block = np.full((batch, 1), preprocess.Vocab_Pad.BOS, dtype=x_block.dtype)  # bos
@@ -473,8 +489,9 @@ class Transformer(nn.Module):
                            Variable(torch.LongTensor(y_block).type(utils.LONG_TYPE))
 
         result = []
+        z_blocks = None
         for i in range(max_length):
-            log_prob_tail = self(x_block, y_block, y_out_block=None, get_prediction=True)
+            log_prob_tail, z_blocks = self(x_block, y_block, y_out_block=None, get_prediction=True, z_blocks=z_blocks)
             _, ys = torch.max(log_prob_tail, dim=1)
             y_block = torch.cat([y_block.detach(), ys[:, None]], dim=1)
             ys = ys.data.cpu().numpy()
@@ -495,66 +512,3 @@ class Transformer(nn.Module):
                 y = np.array([1], 'i')
             outs.append(y)
         return outs
-
-    # Maybe, some error in this function
-    def translate_beam(self, x_block, max_length=50, beam=5):
-        # TODO: efficient inference by re-using result
-        # TODO: batch processing
-        x_block = utils.source_pad_concat_convert(x_block, device=None)
-        batch, x_length = x_block.shape
-        assert batch == 1, 'Batch processing is not supported now.'
-
-        y_block = np.full((batch, 1), 3, dtype=x_block.dtype)  # bos
-        eos_flags = np.zeros((batch * beam,), dtype=x_block.dtype)
-        # eos_flags = torch.zeros((batch * beam)).type(torch.IntTensor)
-        beam_scores = torch.zeros(1).type(utils.FLOAT_TYPE)
-        result = [[3]] * batch * beam
-
-        x_block, y_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE)), \
-                           Variable(torch.LongTensor(y_block).type(utils.LONG_TYPE))
-
-        for i in range(max_length):
-            log_prob_tail = self(x_block, y_block, y_out_block=None, get_prediction=True)
-            # log_prob_tail = F.log_softmax(log_prob_tail, dim=1)
-
-            # Get the top-k scores and word-ids
-            scores_array, ids_array = torch.topk(log_prob_tail.data, k=beam, dim=1)
-
-            # Compute the cumulative running sum of beam scores
-            if beam_scores.shape[0] != scores_array.shape[0]:
-                beam_scores = beam_scores.expand(scores_array.shape[0], beam_scores.shape[1])
-
-            cumulative_scores = beam_scores + scores_array
-
-            # Reshaping current cumulative scores in 1-column
-            scores_col = cumulative_scores.view(cumulative_scores.nelement())
-            ids_col = ids_array.view(ids_array.nelement())
-
-            # Get top-k from total candidates at every step
-            top_scores, top_idxs = torch.topk(scores_col, beam, dim=0)
-            new_ids = ids_col[top_idxs]
-            new_beam_index = top_idxs / beam
-
-            # Updating the beam_score from the top score
-            new_result = [[]] * batch * beam
-            new_beam_scores = torch.zeros(beam).type(utils.FLOAT_TYPE)
-            for j in range(beam):
-                k = new_beam_index[j]
-                new_beam_scores[j] = top_scores[j]
-                new_result[j] = result[k] + [new_ids[j]]
-
-            result = deepcopy(new_result)
-            beam_scores = deepcopy(new_beam_scores)
-
-            y_block = Variable(torch.LongTensor(result)).type(utils.LONG_TYPE)
-            if x_block.shape[0] != y_block.shape[0]:
-                x_block = x_block.expand(y_block.shape[0], x_block.shape[1])
-
-            eos_flags += (new_ids == 1)
-            if np.all(eos_flags):
-            # if torch.nonzero(eos_flags):
-                break
-
-        outs = [[wi for wi in sent if wi not in [3, 1]] for sent in result]
-        outs = [sent if sent else [1] for sent in outs]
-        return outs[0]

@@ -9,6 +9,7 @@ import numpy as np
 import random
 from time import time
 import torch
+import pickle
 from tqdm import tqdm
 
 import evaluator
@@ -17,6 +18,10 @@ import optimizer as optim
 from torchtext import data
 import utils
 from config import get_train_args
+
+
+def batch_size_func(new, count, sofar):
+    return sofar + len(new[0]) + len(new[1])
 
 
 def save_output(hypotheses, vocab, outf):
@@ -56,7 +61,7 @@ def report_func(epoch, batch, num_batches, start_time, report_stats, report_ever
         report_stats(Statistics): updated Statistics instance.
     """
     if batch % report_every == -1 % report_every:
-        report_stats.output(epoch, batch+1, num_batches, start_time, grad_norm)
+        report_stats.output(epoch, batch + 1, num_batches, start_time, grad_norm)
         report_stats = utils.Statistics()
 
     return report_stats
@@ -80,7 +85,7 @@ class CalculateBleu(object):
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
             if self.beam_size > 1:
-                ys = [self.model.translate(sources, self.max_length, beam=self.beam_size)]
+                ys = self.model.translate(sources, self.max_length, beam=self.beam_size)
             else:
                 ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
             hypotheses.extend(ys)
@@ -101,44 +106,41 @@ def main():
     test_data = np.load(os.path.join(args.input, args.data + ".test.npy")).tolist()
 
     # Reading the vocab file
-    with io.open(os.path.join(args.input, args.data + '.vocab.src.json'), encoding='utf-8') as f:
-        source_id2w = json.load(f, cls=utils.Decoder)
+    with open(os.path.join(args.input, args.data + '.vocab.pickle'), 'rb') as f:
+        id2w = pickle.load(f)
 
-    with io.open(os.path.join(args.input, args.data + '.vocab.trg.json'), encoding='utf-8') as f:
-        target_id2w = json.load(f, cls=utils.Decoder)
+    args.vocab_size = len(id2w)
 
     # Define Model
     model = net.Transformer(args.layers,
-                            len(source_id2w),
-                            len(target_id2w),
+                            len(id2w),
                             args.unit,
                             multi_heads=args.multi_heads,
                             dropout=args.dropout,
-                            max_length=500,
+                            max_length=args.max_length,
                             label_smoothing=args.label_smoothing,
                             embed_position=args.embed_position,
-                            layer_norm=True,
                             tied=args.tied,
                             pos_attention=args.pos_attention)
-    tally_parameters(model)
 
+    tally_parameters(model)
     if args.gpu >= 0:
         model.cuda(args.gpu)
     print(model)
 
-    # if not args.use_fixed_lr:
     optimizer = optim.TransformerAdamTrainer(model, warmup_steps=args.warmup_steps)
-    # else:
-    #     optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
 
-    iter_per_epoch = len(train_data) // args.batchsize
-    print('Number of iter/epoch =', iter_per_epoch)
+    src_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[0])))
+    trg_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[1])))
+    iter_per_epoch = (src_words + trg_words) // args.wbatchsize
+    print('Approximate number of iter/epoch =', iter_per_epoch)
     time_s = time()
 
     for epoch in range(args.epoch):
         random.shuffle(train_data)
-        train_iter = data.iterator.pool(train_data, args.batchsize,
+        train_iter = data.iterator.pool(train_data, args.wbatchsize,
                                         key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
+                                        batch_size_fn=batch_size_func,
                                         random_shuffler=data.iterator.RandomShuffler())
         report_stats = utils.Statistics()
         train_stats = utils.Statistics()
@@ -160,51 +162,49 @@ def main():
 
             norm = utils.grad_norm(model.parameters())
             grad_norm += norm
-            # if args.use_fixed_lr:
-            #     norm = torch.nn.utils.clip_grad_norm(model.parameters(), args.max_norm)
             optimizer.step()
 
             report_stats.update(stat)
             train_stats.update(stat)
-            report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats, args.report_every, grad_norm/(num_steps+1))
+            report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats,
+                                       args.report_every, grad_norm / (num_steps + 1))
+
+            if num_steps + 1 % 1000:
+                if not args.no_bleu:
+                    score, _ = CalculateBleu(model, dev_data, 'Dev Bleu',
+                                             batch=args.batchsize // 4,
+                                             beam_size=args.beam_size)()
+
+                    if score >= best_score:
+                        best_score = score
+                        torch.save(model, args.model_file)
 
         # Check the validation accuracy of prediction after every epoch
-        test_iter = data.iterator.pool(dev_data, args.batchsize // 4,
-                                       key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
-                                       random_shuffler=data.iterator.RandomShuffler())
+        dev_iter = data.iterator.pool(dev_data, args.batchsize // 4,
+                                      key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
+                                      random_shuffler=data.iterator.RandomShuffler())
 
-        for test_batch in test_iter:
+        for dev_batch in dev_iter:
             model.eval()
-            in_arrays = utils.seq2seq_pad_concat_convert(test_batch, -1)
+            in_arrays = utils.seq2seq_pad_concat_convert(dev_batch, -1)
             loss_test, stat = model(*in_arrays)
             valid_stats.update(stat)
 
         print('Train perplexity: %g' % train_stats.ppl())
         print('Train accuracy: %g' % train_stats.accuracy())
 
-        # 2. Validate on the validation set.
         print('Validation perplexity: %g' % valid_stats.ppl())
         print('Validation accuracy: %g' % valid_stats.accuracy())
-
-        if not args.no_bleu:
-            if epoch < args.epoch - 10:
-                score, _ = CalculateBleu(model, dev_data, 'val/main/bleu', batch=args.batchsize // 4)()
-            else:
-                score, _ = CalculateBleu(model, dev_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
-
-            if score >= best_score:
-                best_score = score
-                torch.save(model, args.model_file)
 
     # BLEU score on Test Data
     model = torch.load(args.model_file)
     print('Dev Set BLEU Score')
-    _, dev_hyp = CalculateBleu(model, dev_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
-    save_output(dev_hyp, target_id2w, args.dev_hyp)
+    _, dev_hyp = CalculateBleu(model, dev_data, 'Dev Bleu', batch=args.batchsize // 4, beam_size=args.beam_size)()
+    save_output(dev_hyp, id2w, args.dev_hyp)
 
     print('Test Set BLEU Score')
-    _, test_hyp = CalculateBleu(model, test_data, 'val/main/bleu', batch=1, beam_size=args.beam_size)()
-    save_output(test_hyp, target_id2w, args.test_hyp)
+    _, test_hyp = CalculateBleu(model, test_data, 'Test Bleu', batch=args.batchsize // 4, beam_size=args.beam_size)()
+    save_output(test_hyp, id2w, args.test_hyp)
 
 
 if __name__ == '__main__':

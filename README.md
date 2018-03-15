@@ -69,7 +69,7 @@ BLEU Scores are computed using Beam Search.
 
 | Method                  | Layers | BLEU (dev) | BLEU (test)  | Parameters | Words / Sec |
 | -----------------------------|:-:|:-----:| :----: |------:| -----:|
-| Transformer (self)           | 1 | 32.10 | 34.94 |32.5 M | 60.1K |
+| Transformer (self)           | 1 | 33.16 | 36.52 |32.5 M | 60.1K |
 | Transformer (self)           | 6 | 34.65 |     |69.3 M | 15.5K |
 | BiLSTM encoder (OpenNMT-py)  | 1 | 29.55 |     |41.3 M | 31.5K |
 | LSTM encoder (OpenNMT-py)    | 1 | 30.15 |     |41.8 M | 35.5K |
