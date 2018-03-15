@@ -62,6 +62,7 @@ def get_train_args():
                         help='path to save the model')
     parser.add_argument('--eval_steps', default=1000, type=int,
                         help='Number of steps for evaluation')
+    parser.add_argument('--alpha', default=1.0, type=float, help='Length Normalization coefficient')
 
     parser.add_argument('--dev_hyp', default='results/valid.out', type=str, help='path to save dev set hypothesis')
     parser.add_argument('--test_hyp', default='results/test.out', type=str, help='path to save test set hypothesis')

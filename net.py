@@ -474,9 +474,9 @@ class Transformer(nn.Module):
         else:
             return self.output_and_loss(h_block, y_out_block)
 
-    def translate(self, x_block, max_length=50, beam=5):
+    def translate(self, x_block, max_length=50, beam=5, alpha=0.6):
         if beam:
-            obj = search_strategy.BeamSearch(beam_size=beam, max_len=max_length)
+            obj = search_strategy.BeamSearch(beam_size=beam, max_len=max_length, alpha=alpha)
             id_list, score = obj.generate_output(self, x_block)
             return id_list
 

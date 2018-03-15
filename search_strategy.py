@@ -48,7 +48,6 @@ def update_beam_state(outs, total_score, topk, topk_score, eos_id, alpha, x_bloc
         normalized_total_score = obj.normalize_partial(total_score[:, None],
                                                        topk_score,
                                                        outs.size()[1])
-
         # total_score = torch.where(Variable(is_end),
         #                           Variable(total_score[:, None] + bias),
         #                           Variable(total_score[:, None] + topk_score))

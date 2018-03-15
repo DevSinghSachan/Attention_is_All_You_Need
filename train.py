@@ -68,7 +68,7 @@ def report_func(epoch, batch, num_batches, start_time, report_stats, report_ever
 
 
 class CalculateBleu(object):
-    def __init__(self, model, test_data, key, batch=50, max_length=50, beam_size=1):
+    def __init__(self, model, test_data, key, batch=50, max_length=50, beam_size=1, alpha=0.6):
         self.model = model
         self.test_data = test_data
         self.key = key
@@ -76,6 +76,7 @@ class CalculateBleu(object):
         self.device = -1
         self.max_length = max_length
         self.beam_size = beam_size
+        self.alpha = alpha
 
     def __call__(self):
         self.model.eval()
@@ -85,7 +86,7 @@ class CalculateBleu(object):
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
             if self.beam_size > 1:
-                ys = self.model.translate(sources, self.max_length, beam=self.beam_size)
+                ys = self.model.translate(sources, self.max_length, beam=self.beam_size, alpha=self.alpha)
             else:
                 ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
             hypotheses.extend(ys)
@@ -171,11 +172,12 @@ def main():
             report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats,
                                        args.report_every, grad_norm / (num_steps + 1))
 
-            if total_steps + 1 % 1000 == 0:
+            if (total_steps + 1) % args.eval_steps == 0:
                 if not args.no_bleu:
                     score, _ = CalculateBleu(model, dev_data, 'Dev Bleu',
                                              batch=args.batchsize // 4,
-                                             beam_size=args.beam_size)()
+                                             beam_size=args.beam_size,
+                                             alpha=args.alpha)()
 
                     if score >= best_score:
                         best_score = score
@@ -201,11 +203,21 @@ def main():
     # BLEU score on Dev and Test Data
     model = torch.load(args.model_file)
     print('Dev Set BLEU Score')
-    _, dev_hyp = CalculateBleu(model, dev_data, 'Dev Bleu', batch=args.batchsize // 4, beam_size=args.beam_size)()
+    _, dev_hyp = CalculateBleu(model,
+                               dev_data,
+                               'Dev Bleu',
+                               batch=args.batchsize // 4,
+                               beam_size=args.beam_size,
+                               alpha=args.alpha)()
     save_output(dev_hyp, id2w, args.dev_hyp)
 
     print('Test Set BLEU Score')
-    _, test_hyp = CalculateBleu(model, test_data, 'Test Bleu', batch=args.batchsize // 4, beam_size=args.beam_size)()
+    _, test_hyp = CalculateBleu(model,
+                                test_data,
+                                'Test Bleu',
+                                batch=args.batchsize // 4,
+                                beam_size=args.beam_size,
+                                alpha=args.alpha)()
     save_output(test_hyp, id2w, args.test_hyp)
 
 
