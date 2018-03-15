@@ -17,9 +17,8 @@ The code in this repository implements the following features:
 * Positional Attention from "*[Non-Autoregressive Neural Machine Translation](https://arxiv.org/abs/1711.02281)*"
 * Label Smoothing
 * Warm-up steps based training of Adam Optimizer
-* LayerNorm and residual connections after each sublayer
-* Shared weights of target embedding and decoder softmax layer
-* Beam Search
+* Shared weights of embedding and softmax layers
+* Beam Search with length normalisation
 
 ## Software Requirements
 * Python 3.6
@@ -78,18 +77,6 @@ BLEU Scores are computed using Beam Search.
 | Transformer (XNMT)           | 1 | 25.55 |      |   | 2.2K (Target Words) |
 
 <sup>*</sup>1 epoch get completed in around 180 seconds.
-
-Some more results:
-
-- **31.33** (Layers=1, B=100, Beam=5)
-BLEU: 31.33, 63.8/38.4/26.9/19.9 (BP = 0.923, ratio=0.93, hyp_len=4222, ref_len=4557)
-- **32.91** (Layers=1, B=128, Beam=5)
-BLEU: 32.91, 63.2/39.2/28.4/21.3 (BP = 0.939, ratio=0.94, hyp_len=4289, ref_len=4557)
-- **31.70** (Layers=1, B=156, Beam=5)
-BLEU: 31.70, 60.4/36.6/25.9/19.5 (BP = 0.975, ratio=0.98, hyp_len=4444, ref_len=4557)
-- **32.56** (Layers=1, B=100, Beam=5, Pos_Attention=True)
-BLEU: 32.56, 62.0/37.7/27.1/20.6 (BP = 0.963, ratio=0.96, hyp_len=4391, ref_len=4557)
-- **34.65** (Layers=6, B=100, Beam=5)
 
 
 ### En->Vi translation
