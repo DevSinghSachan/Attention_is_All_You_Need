@@ -136,6 +136,7 @@ def main():
     print('Approximate number of iter/epoch =', iter_per_epoch)
     time_s = time()
 
+    total_steps = 0
     for epoch in range(args.epoch):
         random.shuffle(train_data)
         train_iter = data.iterator.pool(train_data, args.wbatchsize,
@@ -148,6 +149,7 @@ def main():
 
         grad_norm = 0
         for num_steps, train_batch in enumerate(train_iter):
+            total_steps += 1
             model.train()
             optimizer.zero_grad()
 
@@ -169,7 +171,7 @@ def main():
             report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats,
                                        args.report_every, grad_norm / (num_steps + 1))
 
-            if num_steps + 1 % 1000 == 0:
+            if total_steps + 1 % 1000 == 0:
                 if not args.no_bleu:
                     score, _ = CalculateBleu(model, dev_data, 'Dev Bleu',
                                              batch=args.batchsize // 4,
