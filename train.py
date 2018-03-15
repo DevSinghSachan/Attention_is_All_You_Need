@@ -169,7 +169,7 @@ def main():
             report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats,
                                        args.report_every, grad_norm / (num_steps + 1))
 
-            if num_steps + 1 % 1000:
+            if num_steps + 1 % 1000 == 0:
                 if not args.no_bleu:
                     score, _ = CalculateBleu(model, dev_data, 'Dev Bleu',
                                              batch=args.batchsize // 4,
@@ -196,7 +196,7 @@ def main():
         print('Validation perplexity: %g' % valid_stats.ppl())
         print('Validation accuracy: %g' % valid_stats.accuracy())
 
-    # BLEU score on Test Data
+    # BLEU score on Dev and Test Data
     model = torch.load(args.model_file)
     print('Dev Set BLEU Score')
     _, dev_hyp = CalculateBleu(model, dev_data, 'Dev Bleu', batch=args.batchsize // 4, beam_size=args.beam_size)()
