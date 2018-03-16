@@ -406,7 +406,8 @@ class Transformer(nn.Module):
         history_mask = (arange[None,] <= arange[:, None])[None,]
         history_mask = np.broadcast_to(history_mask, (batch, length, length))
         history_mask = history_mask.astype(np.int32)
-        history_mask = Variable(torch.ByteTensor(history_mask).type(utils.BYTE_TYPE))
+        history_mask = Variable(torch.ByteTensor(history_mask).type(utils.BYTE_TYPE),
+                                requires_grad=False)
         return history_mask
 
     def output(self, h):
@@ -486,8 +487,8 @@ class Transformer(nn.Module):
         y_block = np.full((batch, 1), preprocess.Vocab_Pad.BOS, dtype=x_block.dtype)  # bos
         eos_flags = np.zeros((batch,), dtype=x_block.dtype)
 
-        x_block, y_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE)), \
-                           Variable(torch.LongTensor(y_block).type(utils.LONG_TYPE))
+        x_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE), requires_grad=False)
+        y_block = Variable(torch.LongTensor(y_block).type(utils.LONG_TYPE), requires_grad=False)
 
         result = []
         z_blocks = None

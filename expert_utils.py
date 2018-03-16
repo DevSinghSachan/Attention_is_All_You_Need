@@ -57,6 +57,7 @@ class PadRemover(object):
       a tensor of shape [dim_origin,...] with dim_compressed >= dim_origin. The
       dim is restored from the original reference tensor
     """
-        z = torch.autograd.Variable(torch.zeros(self.dim_origin, x.size()[1]).type(utils.FLOAT_TYPE))
+        z = torch.autograd.Variable(torch.zeros(self.dim_origin, x.size()[1]).type(utils.FLOAT_TYPE),
+                                    requires_grad=False)
         z.index_copy_(0, self.nonpad_ids, x)
         return z

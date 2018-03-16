@@ -52,16 +52,16 @@ def update_beam_state(outs, total_score, topk, topk_score, eos_id, alpha, x_bloc
         #                           Variable(total_score[:, None] + bias),
         #                           Variable(total_score[:, None] + topk_score))
 
-        total_score = torch.where(Variable(is_end),
-                                  Variable(total_score[:, None] + bias),
-                                  Variable(normalized_total_score))
+        total_score = torch.where(Variable(is_end, requires_grad=False),
+                                  Variable(total_score[:, None] + bias, requires_grad=False),
+                                  Variable(normalized_total_score, requires_grad=False))
 
         total_score = total_score.data
         assert (torch.max(total_score) < 0.)
 
-        topk = torch.where(Variable(is_end),
-                           Variable(torch.LongTensor([eos_id]).type(utils.LONG_TYPE)),
-                           Variable(topk))  # this is not required
+        topk = torch.where(Variable(is_end, requires_grad=False),
+                           Variable(torch.LongTensor([eos_id]).type(utils.LONG_TYPE), requires_grad=False),
+                           Variable(topk, requires_grad=False))  # this is not required
         topk = topk.data
 
     total_score = total_score.view((prev_full // prev_k, prev_k * k))
@@ -120,9 +120,9 @@ class BeamSearch(object):
         x_block = utils.source_pad_concat_convert(x_block, device=None)
         batchsize, x_length = x_block.shape
 
-        x_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE))
+        x_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE), requires_grad=False)
         bos_array = np.array([[preprocess.Vocab_Pad.BOS]] * batchsize, 'i')
-        y_block = Variable(torch.LongTensor(bos_array)).type(utils.LONG_TYPE)
+        y_block = Variable(torch.LongTensor(bos_array).type(utils.LONG_TYPE), requires_grad=False)
 
         outs = torch.LongTensor([[preprocess.Vocab_Pad.BOS]] * batchsize * self.k).type(utils.LONG_TYPE)
         total_score, z_blocks = None, None

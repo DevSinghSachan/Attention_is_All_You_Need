@@ -17,7 +17,7 @@ VALID_SRC=$DATA/tst2012.en
 VALID_TGT=$DATA/tst2012.vi
 
 BPE="src+tgt" # src, tgt, src+tgt
-BPE_OPS=25000
+BPE_OPS=16000
 GPUARG="0"
 
 #====== EXPERIMENT BEGIN ======
@@ -28,7 +28,7 @@ echo "Output dir = $OUT"
 [ -d $OUT/models ] || mkdir $OUT/models
 [ -d $OUT/test ] || mkdir -p  $OUT/test
 
-
+<<COMMENT
 echo "Step 1a: Preprocess inputs"
 
 
@@ -57,7 +57,7 @@ python ${TF}/preprocess.py -i ${OUT}/data \
       -s-test test.src \
       -t-test test.tgt \
       --save_data processed
-
+COMMENT
 
 echo "Step 2: Train"
 CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt --data processed \

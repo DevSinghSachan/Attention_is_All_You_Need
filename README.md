@@ -41,11 +41,11 @@ python preprocess.py -i data/ja_en -s-train train-big.ja -t-train train-big.en -
 
 ### Step 2: Train and Evaluate the model:
 ```bash
-python train.py -i data/ja_en --data demo --batchsize 128 --tied --beam_size 5 --dropout 0.2 --epoch 40 --layers 1 --multi_heads 8 --gpu 0
+python train.py -i data/ja_en --data demo --wbatchsize 4096 --batchsize 60 --tied --beam_size 5 --epoch 40 --layers 6 --multi_heads 8 --gpu 0
 ```
 
 ```bash
-python translate.py -i data/ja_en --data demo --batchsize 128 --beam_size 5 --model_file "results/model.ckpt" --src data/ja_en/test.ja
+python translate.py -i data/ja_en --data demo --batchsize 60 --beam_size 5 --model_file "results/model.ckpt" --src data/ja_en/test.ja
 ```
 
 ## Dataset
