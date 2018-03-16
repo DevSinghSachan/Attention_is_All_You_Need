@@ -84,16 +84,12 @@ def seq_func(func, x, reconstruct_shape=True, pad_remover=None):
     :return: Tensor of shape (batchsize, dimension, sentence_length) or (batchsize x sentence_length, dimension)
     """
     batch, units, length = x.shape
-
     e = torch.transpose(x, 1, 2).contiguous().view(batch * length, units)
     if pad_remover:
         e = pad_remover.remove(e)
-
     e = func(e)
-
     if pad_remover:
         e = pad_remover.restore(e)
-
     if not reconstruct_shape:
         return e
     out_units = e.shape[1]
@@ -140,12 +136,12 @@ class LinearSent(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    """Multi-Head Attention Layer for Sentence Blocks. For computational efficiency, dot-product to calculate
-    query-key scores is performed in all the heads together.
-    Positional Attention is introduced in "Non-Autoregressive Neural Machine Translation" (https://arxiv.org/abs/1711.02281)
+    """Multi-Head Attention Layer for Sentence Blocks. For computational efficiency,
+    dot-product to calculate query-key scores is performed in all the heads together.
+    Positional Attention is introduced in "Non-Autoregressive Neural Machine Translation"
+    (https://arxiv.org/abs/1711.02281)
     """
-
-    def __init__(self, n_units, multi_heads=8, pos_attn=False, attention_dropout=0.1):
+    def __init__(self, n_units, multi_heads=8, attention_dropout=0.1, pos_attn=False):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
         self.W_K = LinearSent(n_units, n_units, bias=False)
@@ -225,15 +221,16 @@ class FeedForwardLayer(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, n_units, multi_heads=8, dropout=0.2, n_hidden=2048):
+    def __init__(self, n_units, multi_heads=8, layer_prepostprocess_dropout=0.1,
+                 n_hidden=2048, attention_dropout=0.1, relu_dropout=0.1):
         super(EncoderLayer, self).__init__()
         self.ln_1 = LayerNormSent(n_units, eps=1e-3)
-        self.self_attention = MultiHeadAttention(n_units, multi_heads)
-        self.dropout1 = nn.Dropout(dropout)
+        self.self_attention = MultiHeadAttention(n_units, multi_heads, attention_dropout)
+        self.dropout1 = nn.Dropout(layer_prepostprocess_dropout)
 
         self.ln_2 = LayerNormSent(n_units, eps=1e-3)
-        self.feed_forward = FeedForwardLayer(n_units, n_hidden)
-        self.dropout2 = nn.Dropout(dropout)
+        self.feed_forward = FeedForwardLayer(n_units, n_hidden, relu_dropout)
+        self.dropout2 = nn.Dropout(layer_prepostprocess_dropout)
 
     def forward(self, e, xx_mask, pad_remover=None):
         e = self.ln_1(e)
@@ -247,14 +244,14 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, n_units, multi_heads=8, dropout=0.2, pos_attention=False,
-                 n_hidden=2048):
+    def __init__(self, n_units, multi_heads=8, layer_prepostprocess_dropout=0.1,
+                 pos_attention=False, n_hidden=2048, attention_dropout=0.1, relu_dropout=0.1):
         super(DecoderLayer, self).__init__()
         self.pos_attention = pos_attention
 
         self.ln_1 = LayerNormSent(n_units, eps=1e-3)
-        self.self_attention = MultiHeadAttention(n_units, multi_heads)
-        self.dropout1 = nn.Dropout(dropout)
+        self.self_attention = MultiHeadAttention(n_units, multi_heads, attention_dropout)
+        self.dropout1 = nn.Dropout(layer_prepostprocess_dropout)
 
         if pos_attention:
             position_encoding_block = Transformer.initialize_position_encoding(500, n_units)
@@ -262,16 +259,16 @@ class DecoderLayer(nn.Module):
             self.register_parameter("Position Encoding Block", self.position_encoding_block)
 
             self.ln_pos = LayerNormSent(n_units, eps=1e-3)
-            self.pos_attention = MultiHeadAttention(n_units, multi_heads, pos_attn=True)
-            self.dropout_pos = nn.Dropout(dropout)
+            self.pos_attention = MultiHeadAttention(n_units, multi_heads, attention_dropout, pos_attn=True)
+            self.dropout_pos = nn.Dropout(layer_prepostprocess_dropout)
 
         self.ln_2 = LayerNormSent(n_units, eps=1e-3)
-        self.source_attention = MultiHeadAttention(n_units, multi_heads)
-        self.dropout2 = nn.Dropout(dropout)
+        self.source_attention = MultiHeadAttention(n_units, multi_heads, attention_dropout)
+        self.dropout2 = nn.Dropout(layer_prepostprocess_dropout)
 
         self.ln_3 = LayerNormSent(n_units, eps=1e-3)
-        self.feed_forward = FeedForwardLayer(n_units, n_hidden)
-        self.dropout3 = nn.Dropout(dropout)
+        self.feed_forward = FeedForwardLayer(n_units, n_hidden, relu_dropout)
+        self.dropout3 = nn.Dropout(layer_prepostprocess_dropout)
 
     def forward(self, e, s, xy_mask, yy_mask, pad_remover):
         batch, units, length = e.shape
@@ -298,11 +295,13 @@ class DecoderLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, n_hidden=2048):
+    def __init__(self, n_layers, n_units, multi_heads=8, layer_prepostprocess_dropout=0.1,
+                 n_hidden=2048, attention_dropout=0.1, relu_dropout=0.1):
         super(Encoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(n_layers):
-            layer = EncoderLayer(n_units, multi_heads, dropout, n_hidden)
+            layer = EncoderLayer(n_units, multi_heads, layer_prepostprocess_dropout,
+                                 n_hidden, attention_dropout, relu_dropout)
             self.layers.append(layer)
         self.ln = LayerNormSent(n_units, eps=1e-3)
 
@@ -314,11 +313,14 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, n_layers, n_units, multi_heads=8, dropout=0.2, pos_attention=False, n_hidden=2048):
+    def __init__(self, n_layers, n_units, multi_heads=8, layer_prepostprocess_dropout=0.1,
+                 pos_attention=False, n_hidden=2048, attention_dropout=0.1,
+                 relu_dropout=0.1):
         super(Decoder, self).__init__()
         self.layers = torch.nn.ModuleList()
         for i in range(n_layers):
-            layer = DecoderLayer(n_units, multi_heads, dropout, pos_attention, n_hidden)
+            layer = DecoderLayer(n_units, multi_heads, layer_prepostprocess_dropout,
+                                 pos_attention, n_hidden, attention_dropout, relu_dropout)
             self.layers.append(layer)
         self.ln = LayerNormSent(n_units, eps=1e-3)
 
@@ -330,41 +332,40 @@ class Decoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, n_layers, n_vocab, n_units, multi_heads=8, dropout=0.1, max_length=500,
-                 label_smoothing=False, embed_position=False, tied=True, attn_dropout=False,
-                 pos_attention=False):
+    def __init__(self, config):
         super(Transformer, self).__init__()
-        self.embed_word = nn.Embedding(n_vocab, n_units, padding_idx=0)
+        self.embed_word = nn.Embedding(config.n_vocab, config.n_units, padding_idx=0)
 
         # Initialize the embedding parameters (Default)
         # self.embed_word.weight.data.uniform_(-3. / n_source_vocab, 3. / n_source_vocab)
 
         # Using Truncated Normal Initializer (default in Tensorflow)
-        self.embed_word.weight.data = truncated_normal(shape=(n_vocab, n_units),
-                                                       stddev=1.0 / math.sqrt(n_units))
+        self.embed_word.weight.data = truncated_normal(shape=(config.n_vocab, config.n_units),
+                                                       stddev=1.0 / math.sqrt(config.n_units))
 
-        self.embed_dropout = nn.Dropout(dropout)
-        self.n_hidden = n_units * 4
-        self.encoder = Encoder(n_layers, n_units, multi_heads, dropout, self.n_hidden)
-        self.decoder = Decoder(n_layers, n_units, multi_heads, dropout, pos_attention, self.n_hidden)
+        self.embed_dropout = nn.Dropout(config.dropout)
+        self.n_hidden = config.n_units * 4
+        self.encoder = Encoder(config.layers, config.n_units, config.multi_heads,
+                               config.layer_prepostprocess_dropout, self.n_hidden,
+                               config.attention_dropout, config.relu_dropout)
+        self.decoder = Decoder(config.layers, config.n_units, config.multi_heads,
+                               config.layer_prepostprocess_dropout, config.pos_attention,
+                               self.n_hidden, config.attention_dropout, config.relu_dropout)
 
-        if embed_position:
-            self.embed_pos = nn.Embedding(max_length, n_units, padding_idx=0)
+        if config.embed_position:
+            self.embed_pos = nn.Embedding(config.max_length, config.n_units, padding_idx=0)
 
-        if tied:
-            # self.affine.weight = self.embed_word.weight
+        if config.tied:
             self.affine = TiedLinear(self.embed_word.weight)
         else:
-            self.affine = nn.Linear(n_units, n_vocab, bias=False)
+            self.affine = nn.Linear(config.n_units, config.n_vocab, bias=False)
 
-        self.n_layers = n_layers
-        self.n_units = n_units
-        self.n_target_vocab = n_vocab
-        self.dropout = dropout
-        self.label_smoothing = label_smoothing
-        self.scale_emb = self.n_units ** 0.5
+        self.n_target_vocab = config.n_vocab
+        self.dropout = config.dropout
+        self.label_smoothing = config.label_smoothing
+        self.scale_emb = config.n_units ** 0.5
 
-        position_encoding_block = self.initialize_position_encoding(max_length, n_units)
+        position_encoding_block = self.initialize_position_encoding(config.max_length, config.n_units)
         self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block), requires_grad=False)
         self.register_parameter("Position Encoding Block", self.position_encoding_block)
 

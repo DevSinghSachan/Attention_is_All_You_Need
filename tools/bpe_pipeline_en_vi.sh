@@ -61,7 +61,7 @@ python ${TF}/preprocess.py -i ${OUT}/data \
 
 echo "Step 2: Train"
 CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt --data processed \
---batchsize 80 --tied --beam 5 --epoch 40 --layers 6 --multi_heads 8 --gpu 0 --dev_hyp $OUT/test/valid.out \
+--batchsize 60 --tied --beam_size 5 --epoch 40 --layers 6 --multi_heads 8 --gpu 0 --dev_hyp $OUT/test/valid.out \
 --test_hyp $OUT/test/test.out"
 
 echo "Training command :: $CMD"

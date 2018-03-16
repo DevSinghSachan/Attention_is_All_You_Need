@@ -41,7 +41,7 @@ python preprocess.py -i data/ja_en -s-train train-big.ja -t-train train-big.en -
 
 ### Step 2: Train and Evaluate the model:
 ```bash
-python train.py -i data/ja_en --data demo --batchsize 128 --tied --beam 5 --dropout 0.2 --epoch 40 --layers 1 --multi_heads 8 --gpu 0
+python train.py -i data/ja_en --data demo --batchsize 128 --tied --beam_size 5 --dropout 0.2 --epoch 40 --layers 1 --multi_heads 8 --gpu 0
 ```
 
 ```bash

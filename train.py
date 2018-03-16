@@ -21,7 +21,8 @@ from config import get_train_args
 
 
 def batch_size_func(new, count, sofar):
-    return sofar + len(new[0]) + len(new[1])
+    # return sofar + len(new[0]) + len(new[1])
+    return sofar + (2 * max(len(new[0]), len(new[1])))
 
 
 def save_output(hypotheses, vocab, outf):
@@ -110,26 +111,17 @@ def main():
     with open(os.path.join(args.input, args.data + '.vocab.pickle'), 'rb') as f:
         id2w = pickle.load(f)
 
-    args.vocab_size = len(id2w)
+    args.n_vocab = len(id2w)
 
     # Define Model
-    model = net.Transformer(args.layers,
-                            len(id2w),
-                            args.unit,
-                            multi_heads=args.multi_heads,
-                            dropout=args.dropout,
-                            max_length=args.max_length,
-                            label_smoothing=args.label_smoothing,
-                            embed_position=args.embed_position,
-                            tied=args.tied,
-                            pos_attention=args.pos_attention)
+    model = net.Transformer(args)
 
     tally_parameters(model)
     if args.gpu >= 0:
         model.cuda(args.gpu)
     print(model)
 
-    optimizer = optim.TransformerAdamTrainer(model, warmup_steps=args.warmup_steps)
+    optimizer = optim.TransformerAdamTrainer(model, args)
 
     src_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[0])))
     trg_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[1])))
