@@ -98,6 +98,7 @@ class CalculateBleu(object):
 
 
 def main():
+    checkpoint = dict()
     best_score = 0
     args = get_train_args()
     print(json.dumps(args.__dict__, indent=4))
@@ -122,6 +123,7 @@ def main():
     print(model)
 
     optimizer = optim.TransformerAdamTrainer(model, args)
+    checkpoint['opts'] = args
 
     src_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[0])))
     trg_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[1])))
@@ -173,7 +175,9 @@ def main():
 
                     if score >= best_score:
                         best_score = score
-                        torch.save(model, args.model_file)
+                        checkpoint['state_dict']: model.state_dict()
+                        checkpoint['optimizer']: optimizer.state_dict()
+                        torch.save(checkpoint, args.model_file)
 
         # Check the validation accuracy of prediction after every epoch
         dev_iter = data.iterator.pool(dev_data, args.batchsize // 4,
@@ -193,7 +197,9 @@ def main():
         print('Validation accuracy: %g' % valid_stats.accuracy())
 
     # BLEU score on Dev and Test Data
-    model = torch.load(args.model_file)
+    checkpoint = torch.load(args.model_file)
+    model.load_state_dict(checkpoint['state_dict'])
+
     print('Dev Set BLEU Score')
     _, dev_hyp = CalculateBleu(model,
                                dev_data,

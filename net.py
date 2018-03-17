@@ -28,6 +28,29 @@ def truncated_normal(shape, mean=0.0, stddev=1.0, dtype=np.float32):
     return torch.from_numpy(values.astype(dtype))
 
 
+class ScaledEmbedding(nn.Embedding):
+    """
+    Embedding layer that initialises its values
+    to using a truncated normal variable scaled by the inverse
+    of the embedding dimension.
+    """
+
+    def reset_parameters(self):
+        """
+        Initialize parameters using Truncated Normal Initializer (default in Tensorflow)
+        """
+        # Initialize the embedding parameters (Default)
+        # This works well too
+        # self.embed_word.weight.data.uniform_(-3. / self.num_embeddings,
+        #                                      3. / self.num_embeddings)
+
+        self.weight.data = truncated_normal(shape=(self.num_embeddings,
+                                                   self.embedding_dim),
+                                            stddev=1.0 / math.sqrt(self.embedding_dim))
+        if self.padding_idx is not None:
+            self.weight.data[self.padding_idx].fill_(0)
+
+
 class TiedLinear(object):
     def __init__(self, param):
         self.weight = param
@@ -141,6 +164,7 @@ class MultiHeadAttention(nn.Module):
     Positional Attention is introduced in "Non-Autoregressive Neural Machine Translation"
     (https://arxiv.org/abs/1711.02281)
     """
+
     def __init__(self, n_units, multi_heads=8, attention_dropout=0.1, pos_attn=False):
         super(MultiHeadAttention, self).__init__()
         self.W_Q = LinearSent(n_units, n_units, bias=False)
@@ -334,15 +358,7 @@ class Decoder(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, config):
         super(Transformer, self).__init__()
-        self.embed_word = nn.Embedding(config.n_vocab, config.n_units, padding_idx=0)
-
-        # Initialize the embedding parameters (Default)
-        # self.embed_word.weight.data.uniform_(-3. / n_source_vocab, 3. / n_source_vocab)
-
-        # Using Truncated Normal Initializer (default in Tensorflow)
-        self.embed_word.weight.data = truncated_normal(shape=(config.n_vocab, config.n_units),
-                                                       stddev=1.0 / math.sqrt(config.n_units))
-
+        self.embed_word = ScaledEmbedding(config.n_vocab, config.n_units, padding_idx=0)
         self.embed_dropout = nn.Dropout(config.dropout)
         self.n_hidden = config.n_units * 4
         self.encoder = Encoder(config.layers, config.n_units, config.multi_heads,
@@ -365,8 +381,10 @@ class Transformer(nn.Module):
         self.label_smoothing = config.label_smoothing
         self.scale_emb = config.n_units ** 0.5
 
-        position_encoding_block = self.initialize_position_encoding(config.max_length, config.n_units)
-        self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block), requires_grad=False)
+        position_encoding_block = self.initialize_position_encoding(config.max_length,
+                                                                    config.n_units)
+        self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block),
+                                                    requires_grad=False)
         self.register_parameter("Position Encoding Block", self.position_encoding_block)
 
     @staticmethod
@@ -389,8 +407,8 @@ class Transformer(nn.Module):
 
         if hasattr(self, 'embed_pos'):
             emb_block += sentence_block_embed(self.embed_pos,
-                                              self.xp.broadcast_to(self.xp.arange(length).astype('i')[None, :],
-                                                                   block.shape))
+                                              np.broadcast_to(np.arange(length).astype('i')[None, :],
+                                                              block.shape))
         emb_block = self.embed_dropout(emb_block)
         return emb_block
 
@@ -411,7 +429,6 @@ class Transformer(nn.Module):
         return history_mask
 
     def output(self, h):
-        # return F.linear(h, self.embed_y.weight)
         return self.affine(h)
 
     def output_and_loss(self, h_block, t_block):

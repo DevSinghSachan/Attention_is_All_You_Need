@@ -76,7 +76,7 @@ def get_train_args():
                         help='Length Normalization coefficient')
 
     # Output Files
-    parser.add_argument('--out', '-o', default='result',
+    parser.add_argument('--out', '-o', default='results',
                         help='Directory to output the result')
     parser.add_argument('--model_file', default='results/model.ckpt', type=str,
                         help='path to save the model')
@@ -136,15 +136,18 @@ def get_translate_args():
     parser.add_argument('--src', type=str,
                         help='Source sequence to decode (one line per sequence)')
     parser.add_argument('--tok', dest='tok', action='store_true',
-                        help='Vocabulary size of target language')
+                        help='tokenization option')
     parser.set_defaults(tok=False)
-
+    parser.add_argument('--gpu', '-g', type=int, default=-1,
+                        help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--output', type=str, default='pred.txt',
                         help='Path to output the predictions (each line will be the decoded sequence')
     parser.add_argument('--model_file', type=str, default='results/model.ckpt',
                         help='Path to model .ckpt file')
-    parser.add_argument('--batchsize', type=int, default=80)
+    parser.add_argument('--batchsize', type=int, default=60)
     parser.add_argument('--beam_size', type=int, default=5)
+    parser.add_argument('--alpha', default=1.0, type=float,
+                        help='Length Normalization coefficient')
 
     args = parser.parse_args()
     return args

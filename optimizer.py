@@ -32,3 +32,7 @@ class TransformerAdamTrainer(object):
 
     def zero_grad(self):
         self.optimizer.zero_grad()
+
+    def state_dict(self):
+        return self.optimizer.state_dict()
+

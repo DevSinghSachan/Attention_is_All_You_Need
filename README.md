@@ -45,7 +45,7 @@ python train.py -i data/ja_en --data demo --wbatchsize 4096 --batchsize 60 --tie
 ```
 
 ```bash
-python translate.py -i data/ja_en --data demo --batchsize 60 --beam_size 5 --model_file "results/model.ckpt" --src data/ja_en/test.ja
+python translate.py -i data/ja_en --data demo --batchsize 60 --beam_size 5 --model_file "results/model.ckpt" --src data/ja_en/test.ja --gpu 0
 ```
 
 ## Dataset

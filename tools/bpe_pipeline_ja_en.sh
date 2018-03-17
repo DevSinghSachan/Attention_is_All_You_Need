@@ -17,8 +17,7 @@ VALID_SRC=$DATA/dev.ja
 VALID_TGT=$DATA/dev.en
 
 BPE="src+tgt" # src, tgt, src+tgt
-BPE_OPS=30000
-GPUARG="0"
+BPE_OPS=16000
 
 #====== EXPERIMENT BEGIN ======
 
@@ -31,7 +30,7 @@ echo "Output dir = $OUT"
 
 echo "Step 1a: Preprocess inputs"
 
-<<COMMENT
+
 echo "Learning BPE on source and target combined"
 cat ${TRAIN_SRC} ${TRAIN_TGT} | ${TF}/tools/learn_bpe.py -s ${BPE_OPS} > $OUT/data/bpe-codes.${BPE_OPS}
 
@@ -45,11 +44,10 @@ $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $TRAIN_TGT > $OUT/da
 $TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $VALID_TGT > $OUT/data/valid.tgt
 # We dont touch the test References, No BPE on them!
 cp $TEST_TGT $OUT/data/test.tgt
-COMMENT
 
-#: <<EOF
+
 echo "Step 1b: Preprocess"
-python ${TF}/preprocess_bpe.py -i ${OUT}/data \
+python ${TF}/preprocess.py -i ${OUT}/data \
       -s-train train.src \
       -t-train train.tgt \
       -s-valid valid.src \
@@ -60,15 +58,13 @@ python ${TF}/preprocess_bpe.py -i ${OUT}/data \
 
 
 echo "Step 2: Train"
-CMD="python -m pdb $TF/train_bpe.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt --data processed \
---batchsize 90 --tied --beam 5 --epoch 40 --layers 6 --multi_heads 8 --gpu 0 --dev_hyp $OUT/test/valid.out \
+CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt --data processed \
+--batchsize 60 --tied --beam_size 5 --epoch 40 --layers 6 --multi_heads 8 --gpu 0 --dev_hyp $OUT/test/valid.out \
 --test_hyp $OUT/test/test.out"
 
 echo "Training command :: $CMD"
 eval "$CMD"
 
-
-#EOF
 
 # select a model with high accuracy and low perplexity
 model=$OUT/models/model_$NAME.ckpt
