@@ -20,4 +20,4 @@ else:
     func = sp.DecodeIds
 
 for line in sys.stdin:
-    print(func(line))
+    print(func(line.strip().split()))

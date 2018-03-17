@@ -20,4 +20,4 @@ else:
     func = sp.EncodeAsIds
 
 for line in sys.stdin:
-    print(func(line))
+    print(' '.join(func(line.strip())))
