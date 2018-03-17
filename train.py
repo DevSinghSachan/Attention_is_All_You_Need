@@ -175,8 +175,8 @@ def main():
 
                     if score >= best_score:
                         best_score = score
-                        checkpoint['state_dict']: model.state_dict()
-                        checkpoint['optimizer']: optimizer.state_dict()
+                        checkpoint['state_dict'] = model.state_dict()
+                        checkpoint['optimizer'] = optimizer.state_dict()
                         torch.save(checkpoint, args.model_file)
 
         # Check the validation accuracy of prediction after every epoch

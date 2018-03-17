@@ -2,6 +2,7 @@
 
 TF=$(pwd)
 
+export PATH=$PATH:$TF/bin
 #======= EXPERIMENT SETUP ======
 
 # update these variables
