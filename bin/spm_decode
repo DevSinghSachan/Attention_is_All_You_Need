@@ -6,7 +6,7 @@ import sentencepiece as spm
 
 
 parser = ArgumentParser(description='SentencePiece Train')
-parser.add_argument('--output_format', type=str)
+parser.add_argument('--input_format', type=str)
 parser.add_argument('--model', type=str)
 args = parser.parse_args()
 
@@ -14,10 +14,15 @@ args = parser.parse_args()
 sp = spm.SentencePieceProcessor()
 sp.Load("{}".format(args.model))
 
-if args.output_format == 'piece':
+map_func = None
+if args.input_format == 'piece':
     func = sp.DecodePieces
 else:
     func = sp.DecodeIds
+    map_func = int
 
 for line in sys.stdin:
-    print(func(line.strip().split()))
+    line = line.strip().split()
+    if map_func:
+        line = map(map_func, line)
+    print(func(line))

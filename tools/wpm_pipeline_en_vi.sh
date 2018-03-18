@@ -32,7 +32,6 @@ echo "Output dir = $OUT"
 
 echo "Step 1a: Preprocess inputs"
 
-
 echo "Learning Word Piece on source and target combined"
 spm_train --input=${TRAIN_SRC},${TRAIN_TGT} --vocab_size ${VOCAB_SIZE} --model_prefix=$OUT/data/wpm-codes.${VOCAB_SIZE}
 
@@ -75,7 +74,6 @@ if [[ -z "$model" ]]; then
     echo "Model not found. Looked in $OUT/models/"
     exit 1
 fi
-
 
 echo "BPE decoding/detokenising target to match with references"
 mv $OUT/test/test.out{,.wpm}
