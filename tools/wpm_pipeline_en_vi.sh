@@ -36,13 +36,13 @@ echo "Learning Word Piece on source and target combined"
 spm_train --input=${TRAIN_SRC},${TRAIN_TGT} --vocab_size ${VOCAB_SIZE} --model_prefix=$OUT/data/wpm-codes.${VOCAB_SIZE}
 
 echo "Applying Word Piece on source"
-spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=piece < $TRAIN_SRC > $OUT/data/train.src
-spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=piece < $VALID_SRC > $OUT/data/valid.src
-spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=piece < $TEST_SRC > $OUT/data/test.src
+spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=id < $TRAIN_SRC > $OUT/data/train.src
+spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=id < $VALID_SRC > $OUT/data/valid.src
+spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=id < $TEST_SRC > $OUT/data/test.src
 
 echo "Applying Word Piece on target"
-spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=piece <  $TRAIN_TGT > $OUT/data/train.tgt
-spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=piece <  $VALID_TGT > $OUT/data/valid.tgt
+spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=id <  $TRAIN_TGT > $OUT/data/train.tgt
+spm_encode --model $OUT/data/wpm-codes.${VOCAB_SIZE}.model --output_format=id <  $VALID_TGT > $OUT/data/valid.tgt
 # We dont touch the test References, No BPE on them!
 cp $TEST_TGT $OUT/data/test.tgt
 
@@ -78,8 +78,8 @@ fi
 echo "BPE decoding/detokenising target to match with references"
 mv $OUT/test/test.out{,.wpm}
 mv $OUT/test/valid.out{,.wpm}
-spm_decode --model ${OUT}/data/wpm-codes.${VOCAB_SIZE}.model --input_format=piece < ${OUT}/test/valid.out.wpm > $OUT/test/valid.out
-spm_decode --model ${OUT}/data/wpm-codes.${VOCAB_SIZE}.model --input_format=piece < ${OUT}/test/test.out.wpm > $OUT/test/test.out
+spm_decode --model ${OUT}/data/wpm-codes.${VOCAB_SIZE}.model --input_format=id < ${OUT}/test/valid.out.wpm > $OUT/test/valid.out
+spm_decode --model ${OUT}/data/wpm-codes.${VOCAB_SIZE}.model --input_format=id < ${OUT}/test/test.out.wpm > $OUT/test/test.out
 
 echo "Step 4a: Evaluate Test"
 perl $TF/tools/multi-bleu.perl $OUT/data/test.tgt < $OUT/test/test.out > $OUT/test/test.tc.bleu
