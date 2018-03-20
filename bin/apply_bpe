@@ -3,7 +3,7 @@
 # Author: Rico Sennrich
 # flake8: noqa
 
-"""Use operations learned with learn_bpe.py to encode a new text.
+"""Use operations learned with learn_bpe to encode a new text.
 The text will not be smaller, but use only a fixed vocabulary, with rare words
 encoded as variable-length sequences of subword units.
 
@@ -93,7 +93,7 @@ def create_parser():
     parser.add_argument(
         '--codes', '-c', type=argparse.FileType('r'), metavar='PATH',
         required=True,
-        help="File with BPE codes (created by learn_bpe.py).")
+        help="File with BPE codes (created by learn_bpe).")
     parser.add_argument(
         '--output', '-o', type=argparse.FileType('w'), default=sys.stdout,
         metavar='PATH',

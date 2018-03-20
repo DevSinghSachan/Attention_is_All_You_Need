@@ -75,7 +75,7 @@ if [[ -z "$model" ]]; then
     exit 1
 fi
 
-echo "BPE decoding/detokenising target to match with references"
+echo "WPM decoding/detokenising target to match with references"
 mv $OUT/test/test.out{,.wpm}
 mv $OUT/test/valid.out{,.wpm}
 spm_decode --model ${OUT}/data/wpm-codes.${VOCAB_SIZE}.model --input_format=id < ${OUT}/test/valid.out.wpm > $OUT/test/valid.out

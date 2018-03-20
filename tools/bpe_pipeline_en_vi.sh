@@ -2,6 +2,7 @@
 
 TF=$(pwd)
 
+export PATH=$PATH:$TF/bin
 #======= EXPERIMENT SETUP ======
 
 # update these variables
@@ -28,21 +29,21 @@ echo "Output dir = $OUT"
 [ -d $OUT/models ] || mkdir $OUT/models
 [ -d $OUT/test ] || mkdir -p  $OUT/test
 
-<<COMMENT
+
 echo "Step 1a: Preprocess inputs"
 
 
 echo "Learning BPE on source and target combined"
-cat ${TRAIN_SRC} ${TRAIN_TGT} | ${TF}/tools/learn_bpe.py -s ${BPE_OPS} > $OUT/data/bpe-codes.${BPE_OPS}
+cat ${TRAIN_SRC} ${TRAIN_TGT} | learn_bpe -s ${BPE_OPS} > $OUT/data/bpe-codes.${BPE_OPS}
 
 echo "Applying BPE on source"
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} < $TRAIN_SRC > $OUT/data/train.src
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} < $VALID_SRC > $OUT/data/valid.src
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} < $TEST_SRC > $OUT/data/test.src
+apply_bpe -c $OUT/data/bpe-codes.${BPE_OPS} < $TRAIN_SRC > $OUT/data/train.src
+apply_bpe -c $OUT/data/bpe-codes.${BPE_OPS} < $VALID_SRC > $OUT/data/valid.src
+apply_bpe -c $OUT/data/bpe-codes.${BPE_OPS} < $TEST_SRC > $OUT/data/test.src
 
 echo "Applying BPE on target"
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $TRAIN_TGT > $OUT/data/train.tgt
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $VALID_TGT > $OUT/data/valid.tgt
+apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $TRAIN_TGT > $OUT/data/train.tgt
+apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $VALID_TGT > $OUT/data/valid.tgt
 # We dont touch the test References, No BPE on them!
 cp $TEST_TGT $OUT/data/test.tgt
 
@@ -57,7 +58,7 @@ python ${TF}/preprocess.py -i ${OUT}/data \
       -s-test test.src \
       -t-test test.tgt \
       --save_data processed
-COMMENT
+
 
 echo "Step 2: Train"
 CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt --data processed \
