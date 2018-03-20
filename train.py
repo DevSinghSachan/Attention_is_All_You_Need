@@ -167,34 +167,38 @@ def main():
                                        args.report_every, grad_norm / (num_steps + 1))
 
             if (total_steps + 1) % args.eval_steps == 0:
-                if not args.no_bleu:
-                    score, _ = CalculateBleu(model, dev_data, 'Dev Bleu',
-                                             batch=args.batchsize // 4,
-                                             beam_size=args.beam_size,
-                                             alpha=args.alpha)()
+                # Check the validation accuracy of prediction after every epoch
+                dev_iter = data.iterator.pool(dev_data, args.batchsize // 4,
+                                              key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
+                                              random_shuffler=data.iterator.RandomShuffler())
 
-                    if score >= best_score:
-                        best_score = score
-                        checkpoint['state_dict'] = model.state_dict()
-                        checkpoint['optimizer'] = optimizer.state_dict()
-                        torch.save(checkpoint, args.model_file)
+                for dev_batch in dev_iter:
+                    model.eval()
+                    in_arrays = utils.seq2seq_pad_concat_convert(dev_batch, -1)
+                    loss_test, stat = model(*in_arrays)
+                    valid_stats.update(stat)
 
-        # Check the validation accuracy of prediction after every epoch
-        dev_iter = data.iterator.pool(dev_data, args.batchsize // 4,
-                                      key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
-                                      random_shuffler=data.iterator.RandomShuffler())
+                print('Train perplexity: %g' % train_stats.ppl())
+                print('Train accuracy: %g' % train_stats.accuracy())
 
-        for dev_batch in dev_iter:
-            model.eval()
-            in_arrays = utils.seq2seq_pad_concat_convert(dev_batch, -1)
-            loss_test, stat = model(*in_arrays)
-            valid_stats.update(stat)
+                print('Validation perplexity: %g' % valid_stats.ppl())
+                print('Validation accuracy: %g' % valid_stats.accuracy())
 
-        print('Train perplexity: %g' % train_stats.ppl())
-        print('Train accuracy: %g' % train_stats.accuracy())
+                bleu_score, _ = CalculateBleu(model, dev_data, 'Dev Bleu',
+                                              batch=args.batchsize // 4,
+                                              beam_size=args.beam_size,
+                                              alpha=args.alpha)()
+                if args.metric == "bleu":
+                    score = bleu_score
+                elif args.metric == "accuracy":
+                    score = valid_stats.accuracy()
 
-        print('Validation perplexity: %g' % valid_stats.ppl())
-        print('Validation accuracy: %g' % valid_stats.accuracy())
+                if score >= best_score:
+                    best_score = score
+                    checkpoint['state_dict'] = model.state_dict()
+                    checkpoint['optimizer'] = optimizer.state_dict()
+                    torch.save(checkpoint, args.model_file)
+
 
     # BLEU score on Dev and Test Data
     checkpoint = torch.load(args.model_file)

@@ -69,9 +69,8 @@ def get_train_args():
                         help='Number of steps for evaluation')
     parser.add_argument('--beam_size', type=int, default=1,
                         help='Beam size during translation')
-    parser.add_argument('--no_bleu', dest='no_bleu', action='store_true',
-                        help='Skip BLEU calculation')
-    parser.set_defaults(no_bleu=False)
+    parser.add_argument('--metric', default='bleu', type=str,
+                        help='Metric to save the model. Options are: bleu/accuracy')
     parser.add_argument('--alpha', default=1.0, type=float,
                         help='Length Normalization coefficient')
 
