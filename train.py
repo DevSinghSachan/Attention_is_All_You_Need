@@ -10,6 +10,7 @@ import random
 from time import time
 import torch
 import pickle
+import shutil
 from tqdm import tqdm
 
 import evaluator
@@ -18,6 +19,12 @@ import optimizer as optim
 from torchtext import data
 import utils
 from config import get_train_args
+
+
+def save_checkpoint(state, is_best, model_path_, best_model_path_):
+    torch.save(state, model_path_)
+    if is_best:
+        shutil.copyfile(model_path_, best_model_path_)
 
 
 def batch_size_func(new, count, sofar):
@@ -98,7 +105,6 @@ class CalculateBleu(object):
 
 
 def main():
-    checkpoint = dict()
     best_score = 0
     args = get_train_args()
     print(json.dumps(args.__dict__, indent=4))
@@ -123,7 +129,20 @@ def main():
     print(model)
 
     optimizer = optim.TransformerAdamTrainer(model, args)
-    checkpoint['opts'] = args
+
+    # optionally resume from a checkpoint
+    if args.resume:
+        if os.path.isfile(args.model_file):
+            print("=> loading checkpoint '{}'".format(args.model_file))
+            checkpoint = torch.load(args.model_file)
+            args.start_epoch = checkpoint['epoch']
+            best_score = checkpoint['best_bleu']
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})".
+                  format(args.model_file, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.model_file))
 
     src_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[0])))
     trg_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[1])))
@@ -193,15 +212,24 @@ def main():
                 elif args.metric == "accuracy":
                     score = valid_stats.accuracy()
 
-                if score >= best_score:
-                    best_score = score
-                    checkpoint['state_dict'] = model.state_dict()
-                    checkpoint['optimizer'] = optimizer.state_dict()
-                    torch.save(checkpoint, args.model_file)
-
+                is_best = score > best_score
+                best_score = max(score, best_score)
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    'state_dict': model.state_dict(),
+                    'best_score': best_score,
+                    'optimizer': optimizer.state_dict(),
+                    'opts': args,
+                }, is_best,
+                    args.model_file,
+                    args.best_model_file)
 
     # BLEU score on Dev and Test Data
-    checkpoint = torch.load(args.model_file)
+    checkpoint = torch.load(args.best_model_file)
+    print("=> loaded checkpoint '{}' (epoch {}, best score {})".
+          format(args.model_file,
+                 checkpoint['epoch'],
+                 checkpoint['best_score']))
     model.load_state_dict(checkpoint['state_dict'])
 
     print('Dev Set BLEU Score')

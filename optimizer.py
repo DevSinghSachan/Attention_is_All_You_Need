@@ -36,3 +36,6 @@ class TransformerAdamTrainer(object):
     def state_dict(self):
         return self.optimizer.state_dict()
 
+    def load_state_dict(self, params):
+        return self.optimizer.load_state_dict(params)
+

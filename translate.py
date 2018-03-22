@@ -47,7 +47,11 @@ def main():
     w2id = {w: i for i, w in id2w.items()}
     source_data = preprocess.make_dataset(os.path.realpath(args.src), w2id, args.tok)
 
-    checkpoint = torch.load(args.model_file)
+    checkpoint = torch.load(args.best_model_file)
+    print("=> loaded checkpoint '{}' (epoch {}, best score {})".
+          format(args.model_file,
+                 checkpoint['epoch'],
+                 checkpoint['best_score']))
     config = checkpoint['opts']
     model = net.Transformer(config)
     model.load_state_dict(checkpoint['state_dict'])

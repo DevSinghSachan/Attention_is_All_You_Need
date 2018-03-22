@@ -20,6 +20,9 @@ def get_train_args():
                         help='Number of sweeps over the dataset to train')
     parser.add_argument('--gpu', '-g', type=int, default=-1,
                         help='GPU ID (negative value indicates CPU)')
+    parser.add_argument('--resume', dest='resume', action='store_true',
+                         help="resume the model training")
+    parser.set_defaults(resume=False)
 
     # Model Options
     parser.add_argument('--n_units', '-u', type=int, default=512,
@@ -29,6 +32,7 @@ def get_train_args():
     parser.add_argument('--multi_heads', type=int, default=8,
                         help='Number of heads in attention mechanism')
     parser.add_argument('--dropout', '-d', type=float, default=0.1)
+
     parser.add_argument('--attention_dropout', type=float, default=0.1)
     parser.add_argument('--relu_dropout', type=float, default=0.1)
     parser.add_argument('--layer_prepostprocess_dropout', type=float, default=0.1)
@@ -79,6 +83,8 @@ def get_train_args():
                         help='Directory to output the result')
     parser.add_argument('--model_file', default='results/model.ckpt', type=str,
                         help='path to save the model')
+    parser.add_argument('--best_model_file', default='results/model_best.ckpt', type=str,
+                        help='path to save the best model')
     parser.add_argument('--dev_hyp', default='results/valid.out', type=str,
                         help='path to save dev set hypothesis')
     parser.add_argument('--test_hyp', default='results/test.out', type=str,
@@ -143,6 +149,8 @@ def get_translate_args():
                         help='Path to output the predictions (each line will be the decoded sequence')
     parser.add_argument('--model_file', type=str, default='results/model.ckpt',
                         help='Path to model .ckpt file')
+    parser.add_argument('--best_model_file', default='results/model_best.ckpt', type=str,
+                        help='path to save the best model')
     parser.add_argument('--batchsize', type=int, default=60)
     parser.add_argument('--beam_size', type=int, default=5)
     parser.add_argument('--alpha', default=1.0, type=float,
