@@ -257,12 +257,12 @@ class EncoderLayer(nn.Module):
         self.dropout2 = nn.Dropout(layer_prepostprocess_dropout)
 
     def forward(self, e, xx_mask, pad_remover=None):
-        e = self.ln_1(e)
-        sub = self.self_attention(e, mask=xx_mask)
+        # e = self.ln_1(e)
+        sub = self.self_attention(self.ln_1(e), mask=xx_mask)
         e = e + self.dropout1(sub)
 
-        e = self.ln_2(e)
-        sub = self.feed_forward(e, pad_remover=pad_remover)
+        # e = self.ln_2(e)
+        sub = self.feed_forward(self.ln_2(e), pad_remover=pad_remover)
         e = e + self.dropout2(sub)
         return e
 
@@ -297,23 +297,23 @@ class DecoderLayer(nn.Module):
     def forward(self, e, s, xy_mask, yy_mask, pad_remover):
         batch, units, length = e.shape
 
-        e = self.ln_1(e)
-        sub = self.self_attention(e, mask=yy_mask)
+        # e = self.ln_1(e)
+        sub = self.self_attention(self.ln_1(e), mask=yy_mask)
         e = e + self.dropout1(sub)
 
         if self.pos_attention:
-            e = self.ln_pos(e)
+            # e = self.ln_pos(e)
             p = self.position_encoding_block[:, :, :length]
             p = p.expand(batch, units, length)
-            sub = self.pos_attention(p, e, mask=yy_mask)
+            sub = self.pos_attention(p, self.ln_pos(e), mask=yy_mask)
             e = e + self.dropout_pos(sub)
 
-        e = self.ln_2(e)
-        sub = self.source_attention(e, s, mask=xy_mask)
+        # e = self.ln_2(e)
+        sub = self.source_attention(self.ln_2(e), s, mask=xy_mask)
         e = e + self.dropout2(sub)
 
-        e = self.ln_3(e)
-        sub = self.feed_forward(e, pad_remover=pad_remover)
+        # e = self.ln_3(e)
+        sub = self.feed_forward(self.ln_3(e), pad_remover=pad_remover)
         e = e + self.dropout3(sub)
         return e
 
