@@ -61,9 +61,10 @@ python ${TF}/preprocess.py -i ${OUT}/data \
 
 
 echo "Step 2: Train"
-CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt --data processed \
---batchsize 60 --tied --beam_size 5 --epoch 40 --layers 6 --multi_heads 8 --gpu 0 --dev_hyp $OUT/test/valid.out \
---test_hyp $OUT/test/test.out"
+CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt \
+--best_model_file $OUT/models/model_best_$NAME.ckpt --data processed --batchsize 60 --tied --beam_size 5 \
+--epoch 40 --layers 6 --multi_heads 8 --gpu 0 \
+--dev_hyp $OUT/test/valid.out --test_hyp $OUT/test/test.out"
 
 echo "Training command :: $CMD"
 eval "$CMD"
