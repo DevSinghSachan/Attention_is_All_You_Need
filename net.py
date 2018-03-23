@@ -503,9 +503,8 @@ class Transformer(nn.Module):
             negative_log_likelihood_flat = - torch.gather(log_probs_flat, dim=1, index=targets_flat)
 
         # shape : (batch, sequence_length)
-        # negative_log_likelihood = negative_log_likelihood_flat.view(*t_block.size())
-        # shape : (batch, sequence_length)
-        negative_log_likelihood = negative_log_likelihood_flat * weights
+        negative_log_likelihood = negative_log_likelihood_flat.view(rebatch)
+        negative_log_likelihood = negative_log_likelihood * weights
         # shape : (batch_size,)
         loss = negative_log_likelihood.sum() / (weights.sum() + 1e-13)
 
