@@ -16,12 +16,12 @@ from expert_utils import PadRemover
 cudnn.benchmark = True
 
 
-def zeros_like(tensor):
+def input_like(tensor, val=0):
     """
     Use clone() + fill_() to make sure that a zeros tensor ends up on the right
     device at runtime.
     """
-    return tensor.clone().fill_(0)
+    return tensor.clone().fill_(val)
 
 
 def truncated_normal(shape, mean=0.0, stddev=1.0, dtype=np.float32):
@@ -489,10 +489,10 @@ class Transformer(nn.Module):
 
         if self.label_smoothing is not None and self.label_smoothing > 0.0:
             num_classes = logits_flat.size(-1)
-            smoothing_value = self.label_smoothing / (num_classes -1)
+            smoothing_value = self.label_smoothing / (num_classes - 1)
+            one_hot_targets = input_like(log_probs_flat, smoothing_value)
             # Fill all the correct indices with 1 - smoothing value.
-            one_hot_targets = zeros_like(log_probs_flat).scatter_(-1, targets_flat, 1.0 - self.label_smoothing)
-            smoothed_targets = one_hot_targets + smoothing_value
+            smoothed_targets = one_hot_targets.scatter_(-1, targets_flat, 1.0 - self.label_smoothing)
             negative_log_likelihood_flat = - log_probs_flat * smoothed_targets
             negative_log_likelihood_flat = negative_log_likelihood_flat.sum(-1, keepdim=True)
         else:
@@ -514,7 +514,6 @@ class Transformer(nn.Module):
                                  n_words=n_total)
 
         return loss, stats
-
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False, z_blocks=None):
         batch, x_length = x_block.shape
