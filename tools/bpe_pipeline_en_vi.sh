@@ -70,15 +70,13 @@ echo "Training command :: $CMD"
 eval "$CMD"
 
 
-#EOF
-
 # select a model with high accuracy and low perplexity
-model=$OUT/models/model_$NAME.ckpt
-echo "Chosen Model = $model"
-if [[ -z "$model" ]]; then
-    echo "Model not found. Looked in $OUT/models/"
-    exit 1
-fi
+#model=$OUT/models/model_$NAME.ckpt
+#echo "Chosen Model = $model"
+#if [[ -z "$model" ]]; then
+#    echo "Model not found. Looked in $OUT/models/"
+#    exit 1
+#fi
 
 
 echo "BPE decoding/detokenising target to match with references"

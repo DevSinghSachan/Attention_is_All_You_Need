@@ -23,6 +23,7 @@ def get_train_args():
     parser.add_argument('--resume', dest='resume', action='store_true',
                          help="resume the model training")
     parser.set_defaults(resume=False)
+    parser.add_argument('--start_epoch', type=int, default=0)
 
     # Model Options
     parser.add_argument('--n_units', '-u', type=int, default=512,

@@ -150,8 +150,8 @@ def main():
     print('Approximate number of iter/epoch =', iter_per_epoch)
     time_s = time()
 
-    total_steps = 0
-    for epoch in range(args.epoch):
+    global_steps = 0
+    for epoch in range(args.start_epoch, args.epoch):
         random.shuffle(train_data)
         train_iter = data.iterator.pool(train_data, args.wbatchsize,
                                         key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
@@ -163,7 +163,7 @@ def main():
 
         grad_norm = 0
         for num_steps, train_batch in enumerate(train_iter):
-            total_steps += 1
+            global_steps += 1
             model.train()
             optimizer.zero_grad()
 
@@ -185,7 +185,7 @@ def main():
             report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats,
                                        args.report_every, grad_norm / (num_steps + 1))
 
-            if (total_steps + 1) % args.eval_steps == 0:
+            if (global_steps + 1) % args.eval_steps == 0:
                 # Check the validation accuracy of prediction after every epoch
                 dev_iter = data.iterator.pool(dev_data, args.batchsize // 4,
                                               key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
@@ -227,7 +227,7 @@ def main():
     # BLEU score on Dev and Test Data
     checkpoint = torch.load(args.best_model_file)
     print("=> loaded checkpoint '{}' (epoch {}, best score {})".
-          format(args.model_file,
+          format(args.best_model_file,
                  checkpoint['epoch'],
                  checkpoint['best_score']))
     model.load_state_dict(checkpoint['state_dict'])

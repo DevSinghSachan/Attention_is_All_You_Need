@@ -16,6 +16,14 @@ from expert_utils import PadRemover
 cudnn.benchmark = True
 
 
+def zeros_like(tensor):
+    """
+    Use clone() + fill_() to make sure that a zeros tensor ends up on the right
+    device at runtime.
+    """
+    return tensor.clone().fill_(0)
+
+
 def truncated_normal(shape, mean=0.0, stddev=1.0, dtype=np.float32):
     """Outputs random values from a truncated normal distribution.
     The generated values follow a normal distribution with specified mean and standard deviation,
@@ -138,13 +146,13 @@ class LinearSent(nn.Module):
     def __init__(self, input_dim, output_dim, bias=True):
         super(LinearSent, self).__init__()
         self.L = nn.Linear(input_dim, output_dim, bias=bias)
-        self.L.weight.data.uniform_(-3. / input_dim, 3. / input_dim)
+        # self.L.weight.data.uniform_(-3. / input_dim, 3. / input_dim)
 
         # Using Xavier Initialization
         # self.L.weight.data.uniform_(-math.sqrt(6.0 / (input_dim + output_dim)),
         #                             math.sqrt(6.0 / (input_dim + output_dim)))
-        # He Initialization
-        # self.L.weight.data.uniform_(-math.sqrt(6.0 / input_dim), math.sqrt(6.0 / input_dim))
+        # LeCun Initialization
+        self.L.weight.data.uniform_(-math.sqrt(3.0 / input_dim), math.sqrt(3.0 / input_dim))
 
         if bias:
             self.L.bias.data.fill_(0.)
@@ -431,37 +439,83 @@ class Transformer(nn.Module):
     def output(self, h):
         return self.affine(h)
 
+    # def output_and_loss(self, h_block, t_block):
+    #     batch, units, length = h_block.shape
+    #
+    #     # Output (all together at once for efficiency)
+    #     concat_logit_block = seq_func(self.affine, h_block, reconstruct_shape=False)
+    #     rebatch, _ = concat_logit_block.shape
+    #
+    #     # Make target
+    #     concat_t_block = t_block.view(rebatch)
+    #     ignore_mask = (concat_t_block >= 1).float()
+    #     n_token = torch.sum(ignore_mask)
+    #     normalizer = n_token
+    #
+    #     if self.label_smoothing:
+    #         log_prob = F.log_softmax(concat_logit_block, dim=1)
+    #         broad_ignore_mask = ignore_mask[:, None].expand_as(concat_logit_block)
+    #         pre_loss = ignore_mask * log_prob[np.arange(rebatch), concat_t_block]
+    #         loss = -1. * torch.sum(pre_loss) / normalizer
+    #     else:
+    #         loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
+    #
+    #     n_correct, n_total = utils.accuracy(concat_logit_block, concat_t_block, ignore_index=0)
+    #     stats = utils.Statistics(loss=utils.to_cpu(loss) * n_total, n_correct=utils.to_cpu(n_correct), n_words=n_total)
+    #
+    #     if self.label_smoothing:
+    #         pre_loss = (1 - self.label_smoothing) * loss
+    #         ls_loss = (-1. / self.n_target_vocab) * broad_ignore_mask * log_prob
+    #         ls_loss = torch.sum(ls_loss) / normalizer
+    #         loss = pre_loss + (self.label_smoothing * ls_loss)
+    #
+    #     return loss, stats
+
     def output_and_loss(self, h_block, t_block):
         batch, units, length = h_block.shape
 
-        # Output (all together at once for efficiency)
-        concat_logit_block = seq_func(self.affine, h_block, reconstruct_shape=False)
-        rebatch, _ = concat_logit_block.shape
-
+        # shape : (batch * sequence_length, num_classes)
+        logits_flat = seq_func(self.affine, h_block, reconstruct_shape=False)
+        rebatch, _ = logits_flat.shape
+        # weights = (t_block >= 1).float()
         # Make target
         concat_t_block = t_block.view(rebatch)
-        ignore_mask = (concat_t_block >= 1).float()
-        n_token = torch.sum(ignore_mask)
-        normalizer = n_token
+        weights = (concat_t_block >= 1).float()
 
-        if self.label_smoothing:
-            log_prob = F.log_softmax(concat_logit_block, dim=1)
-            broad_ignore_mask = ignore_mask[:, None].expand_as(concat_logit_block)
-            pre_loss = ignore_mask * log_prob[np.arange(rebatch), concat_t_block]
-            loss = -1. * torch.sum(pre_loss) / normalizer
+        # shape : (batch * sequence_length, num_classes)
+        log_probs_flat = F.log_softmax(logits_flat, dim=-1)
+        # shape : (batch * max_len, 1)
+        targets_flat = t_block.view(-1, 1).long()
+
+        if self.label_smoothing is not None and self.label_smoothing > 0.0:
+            num_classes = logits_flat.size(-1)
+            smoothing_value = self.label_smoothing / (num_classes -1)
+            # Fill all the correct indices with 1 - smoothing value.
+            one_hot_targets = zeros_like(log_probs_flat).scatter_(-1, targets_flat, 1.0 - self.label_smoothing)
+            smoothed_targets = one_hot_targets + smoothing_value
+            negative_log_likelihood_flat = - log_probs_flat * smoothed_targets
+            negative_log_likelihood_flat = negative_log_likelihood_flat.sum(-1, keepdim=True)
         else:
-            loss = F.cross_entropy(concat_logit_block, concat_t_block, ignore_index=0)
+            # Contribution to the negative log likelihood only comes from the exact indices
+            # of the targets, as the target distributions are one-hot. Here we use torch.gather
+            # to extract the indices of the num_classes dimension which contribute to the loss.
+            # shape : (batch * sequence_length, 1)
+            negative_log_likelihood_flat = - torch.gather(log_probs_flat, dim=1, index=targets_flat)
 
-        n_correct, n_total = utils.accuracy(concat_logit_block, concat_t_block, ignore_index=0)
-        stats = utils.Statistics(loss=utils.to_cpu(loss) * n_total, n_correct=utils.to_cpu(n_correct), n_words=n_total)
+        # shape : (batch, sequence_length)
+        # negative_log_likelihood = negative_log_likelihood_flat.view(*t_block.size())
+        # shape : (batch, sequence_length)
+        negative_log_likelihood = negative_log_likelihood_flat * weights
+        # shape : (batch_size,)
+        loss = negative_log_likelihood.sum() / (weights.sum() + 1e-13)
 
-        if self.label_smoothing:
-            pre_loss = (1 - self.label_smoothing) * loss
-            ls_loss = -1. / self.n_target_vocab * broad_ignore_mask * log_prob
-            ls_loss = torch.sum(ls_loss) / normalizer
-            loss = pre_loss + (self.label_smoothing * ls_loss)
+        n_correct, n_total = utils.accuracy(logits_flat, concat_t_block, ignore_index=0)
+        stats = utils.Statistics(loss=utils.to_cpu(loss) * n_total,
+                                 n_correct=utils.to_cpu(n_correct),
+                                 n_words=n_total)
 
         return loss, stats
+
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False, z_blocks=None):
         batch, x_length = x_block.shape
