@@ -11,7 +11,6 @@ from time import time
 import torch
 import pickle
 import shutil
-from tqdm import tqdm
 
 import evaluator
 import net
@@ -95,7 +94,6 @@ class CalculateBleu(object):
         hypotheses = []
         sent_count = 0
         for i in range(0, len(self.test_data), self.batch):
-            sent_count += self.batch * (i + 1)
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
             if self.beam_size > 1:
@@ -111,11 +109,11 @@ class CalculateBleu(object):
             hypotheses.extend(ys)
 
             if self.max_sent is not None and \
-                    (sent_count > self.max_sent):
+                    ((i + 1) > self.max_sent):
                 break
 
             # Log Progress
-            if sent_count % 100 == 0:
+            if (i + 1) % 100 == 0:
                 if self.max_sent is not None:
                     den = self.max_sent
                 else:
@@ -240,7 +238,9 @@ def main():
                 print('Validation perplexity: %g' % valid_stats.ppl())
                 print('Validation accuracy: %g' % valid_stats.accuracy())
 
-                bleu_score, _ = CalculateBleu(model, dev_data, 'Dev Bleu',
+                bleu_score, _ = CalculateBleu(model,
+                                              dev_data,
+                                              'Dev Bleu',
                                               batch=args.batchsize // 4,
                                               beam_size=args.beam_size,
                                               alpha=args.alpha,
