@@ -162,7 +162,7 @@ def main():
             print("=> loading checkpoint '{}'".format(args.model_file))
             checkpoint = torch.load(args.model_file)
             args.start_epoch = checkpoint['epoch']
-            best_score = checkpoint['best_bleu']
+            best_score = checkpoint['best_score']
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})".
