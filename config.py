@@ -24,6 +24,9 @@ def get_train_args():
                          help="resume the model training")
     parser.set_defaults(resume=False)
     parser.add_argument('--start_epoch', type=int, default=0)
+    parser.add_argument('--debug', dest='debug', action='store_true',
+                        help="Compute norm of gradient")
+    parser.set_defaults(debug=False)
 
     # Model Options
     parser.add_argument('--n_units', '-u', type=int, default=512,
@@ -51,10 +54,6 @@ def get_train_args():
     parser.add_argument('--max_length', type=int, default=500,
                         help='Maximum Possible length for a sequence')
 
-    # parser.add_argument('--debug', dest='debug', action='store_true',
-    #                     help="print progress bar")
-    # parser.set_defaults(debug=False)
-
     # Optimizer Options
     parser.add_argument('--warmup_steps', type=float, default=16000,
                         help='warmup steps in Adam Optimizer Training')
@@ -78,6 +77,8 @@ def get_train_args():
                         help='Metric to save the model. Options are: bleu/accuracy')
     parser.add_argument('--alpha', default=1.0, type=float,
                         help='Length Normalization coefficient')
+    parser.add_argument('--max_sent_eval', default=500, type=int,
+                        help='Max. sentences to evaluate while training')
 
     # Output Files
     parser.add_argument('--out', '-o', default='results',

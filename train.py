@@ -48,13 +48,14 @@ def tally_parameters(model):
     for name, param in model.named_parameters():
         if 'encoder' in name:
             enc += param.nelement()
-        elif 'decoder' or 'generator' in name:
+        elif 'decoder' in name:
             dec += param.nelement()
     print('encoder: ', enc)
     print('decoder: ', dec)
 
 
-def report_func(epoch, batch, num_batches, start_time, report_stats, report_every, grad_norm):
+def report_func(epoch, batch, num_batches, start_time, report_stats,
+                report_every):
     """
     This is the user-defined batch-level training progress
     report function.
@@ -69,14 +70,15 @@ def report_func(epoch, batch, num_batches, start_time, report_stats, report_ever
         report_stats(Statistics): updated Statistics instance.
     """
     if batch % report_every == -1 % report_every:
-        report_stats.output(epoch, batch + 1, num_batches, start_time, grad_norm)
+        report_stats.output(epoch, batch + 1, num_batches, start_time)
         report_stats = utils.Statistics()
 
     return report_stats
 
 
 class CalculateBleu(object):
-    def __init__(self, model, test_data, key, batch=50, max_length=50, beam_size=1, alpha=0.6):
+    def __init__(self, model, test_data, key, batch=50, max_length=50,
+                 beam_size=1, alpha=0.6, max_sent=None):
         self.model = model
         self.test_data = test_data
         self.key = key
@@ -85,19 +87,41 @@ class CalculateBleu(object):
         self.max_length = max_length
         self.beam_size = beam_size
         self.alpha = alpha
+        self.max_sent = max_sent
 
     def __call__(self):
         self.model.eval()
         references = []
         hypotheses = []
-        for i in tqdm(range(0, len(self.test_data), self.batch)):
+        sent_count = 0
+        for i in range(0, len(self.test_data), self.batch):
+            sent_count += self.batch * (i + 1)
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
             if self.beam_size > 1:
-                ys = self.model.translate(sources, self.max_length, beam=self.beam_size, alpha=self.alpha)
+                ys = self.model.translate(sources,
+                                          self.max_length,
+                                          beam=self.beam_size,
+                                          alpha=self.alpha)
             else:
-                ys = [y.tolist() for y in self.model.translate(sources, self.max_length, beam=False)]
+                ys = [y.tolist() for y in
+                      self.model.translate(sources,
+                                           self.max_length,
+                                           beam=False)]
             hypotheses.extend(ys)
+
+            if self.max_sent is not None and \
+                    (sent_count > self.max_sent):
+                break
+
+            # Log Progress
+            if sent_count % 100 == 0:
+                if self.max_sent is not None:
+                    den = self.max_sent
+                else:
+                    den = len(self.test_data)
+                print("> Completed: [ %d / %d ]" % (sent_count, den))
+
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
         print('BLEU:', bleu.score_str())
         print('')
@@ -110,14 +134,19 @@ def main():
     print(json.dumps(args.__dict__, indent=4))
 
     # Reading the int indexed text dataset
-    train_data = np.load(os.path.join(args.input, args.data + ".train.npy")).tolist()
-    dev_data = np.load(os.path.join(args.input, args.data + ".valid.npy")).tolist()
-    test_data = np.load(os.path.join(args.input, args.data + ".test.npy")).tolist()
+    train_data = np.load(os.path.join(args.input, args.data + ".train.npy"))
+    train_data = train_data.tolist()
+    dev_data = np.load(os.path.join(args.input, args.data + ".valid.npy"))
+    dev_data = dev_data.tolist()
+    test_data = np.load(os.path.join(args.input, args.data + ".test.npy"))
+    test_data = test_data.tolist()
 
     # Reading the vocab file
-    with open(os.path.join(args.input, args.data + '.vocab.pickle'), 'rb') as f:
+    with open(os.path.join(args.input, args.data + '.vocab.pickle'),
+              'rb') as f:
         id2w = pickle.load(f)
 
+    args.id2w = id2w
     args.n_vocab = len(id2w)
 
     # Define Model
@@ -144,52 +173,60 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.model_file))
 
-    src_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[0])))
-    trg_words = len(list(itertools.chain.from_iterable(list(zip(*train_data))[1])))
-    iter_per_epoch = (src_words + trg_words) // args.wbatchsize
+    src_data, trg_data = list(zip(*train_data))
+    total_src_words = len(list(itertools.chain.from_iterable(src_data)))
+    total_trg_words = len(list(itertools.chain.from_iterable(trg_data)))
+    iter_per_epoch = (total_src_words + total_trg_words) // args.wbatchsize
     print('Approximate number of iter/epoch =', iter_per_epoch)
     time_s = time()
 
     global_steps = 0
     for epoch in range(args.start_epoch, args.epoch):
         random.shuffle(train_data)
-        train_iter = data.iterator.pool(train_data, args.wbatchsize,
-                                        key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
+        train_iter = data.iterator.pool(train_data,
+                                        args.wbatchsize,
+                                        key=lambda x:
+                                        data.utils.interleave_keys(len(x[0]),
+                                                                   len(x[1])),
                                         batch_size_fn=batch_size_func,
-                                        random_shuffler=data.iterator.RandomShuffler())
+                                        random_shuffler=data.iterator.
+                                        RandomShuffler())
         report_stats = utils.Statistics()
         train_stats = utils.Statistics()
         valid_stats = utils.Statistics()
 
-        grad_norm = 0
+        if args.debug:
+            grad_norm = 0.
         for num_steps, train_batch in enumerate(train_iter):
             global_steps += 1
             model.train()
             optimizer.zero_grad()
-
-            # ---------- One iteration of the training loop ----------
-            src_words = len(list(itertools.chain.from_iterable(list(zip(*train_batch))[0])))
+            src_iter = list(zip(*train_batch))[0]
+            src_words = len(list(itertools.chain.from_iterable(src_iter)))
             report_stats.n_src_words += src_words
             train_stats.n_src_words += src_words
-
             in_arrays = utils.seq2seq_pad_concat_convert(train_batch, -1)
             loss, stat = model(*in_arrays)
             loss.backward()
-
-            norm = utils.grad_norm(model.parameters())
-            grad_norm += norm
+            if args.debug:
+                norm = utils.grad_norm(model.parameters())
+                grad_norm += norm
+                if global_steps % args.report_every == 0:
+                    print("> Gradient Norm: %1.4f" % (grad_norm / (num_steps + 1)))
             optimizer.step()
 
             report_stats.update(stat)
             train_stats.update(stat)
-            report_stats = report_func(epoch, num_steps, iter_per_epoch, time_s, report_stats,
-                                       args.report_every, grad_norm / (num_steps + 1))
+            report_stats = report_func(epoch, num_steps, iter_per_epoch,
+                                       time_s, report_stats, args.report_every)
 
             if (global_steps + 1) % args.eval_steps == 0:
-                # Check the validation accuracy of prediction after every epoch
                 dev_iter = data.iterator.pool(dev_data, args.batchsize // 4,
-                                              key=lambda x: data.utils.interleave_keys(len(x[0]), len(x[1])),
-                                              random_shuffler=data.iterator.RandomShuffler())
+                                              key=lambda x:
+                                              data.utils.interleave_keys(len(x[0]),
+                                                                         len(x[1])),
+                                              random_shuffler=data.iterator.
+                                              RandomShuffler())
 
                 for dev_batch in dev_iter:
                     model.eval()
@@ -206,7 +243,8 @@ def main():
                 bleu_score, _ = CalculateBleu(model, dev_data, 'Dev Bleu',
                                               batch=args.batchsize // 4,
                                               beam_size=args.beam_size,
-                                              alpha=args.alpha)()
+                                              alpha=args.alpha,
+                                              max_sent=args.max_sent_eval)()
                 if args.metric == "bleu":
                     score = bleu_score
                 elif args.metric == "accuracy":

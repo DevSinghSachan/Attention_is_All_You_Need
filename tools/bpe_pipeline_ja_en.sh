@@ -2,6 +2,7 @@
 
 TF=$(pwd)
 
+export PATH=$PATH:$TF/bin
 #======= EXPERIMENT SETUP ======
 
 # update these variables
@@ -32,16 +33,16 @@ echo "Step 1a: Preprocess inputs"
 
 
 echo "Learning BPE on source and target combined"
-cat ${TRAIN_SRC} ${TRAIN_TGT} | ${TF}/tools/learn_bpe.py -s ${BPE_OPS} > $OUT/data/bpe-codes.${BPE_OPS}
+cat ${TRAIN_SRC} ${TRAIN_TGT} | learn_bpe -s ${BPE_OPS} > $OUT/data/bpe-codes.${BPE_OPS}
 
 echo "Applying BPE on source"
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} < $TRAIN_SRC > $OUT/data/train.src
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} < $VALID_SRC > $OUT/data/valid.src
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} < $TEST_SRC > $OUT/data/test.src
+apply_bpe -c $OUT/data/bpe-codes.${BPE_OPS} < $TRAIN_SRC > $OUT/data/train.src
+apply_bpe -c $OUT/data/bpe-codes.${BPE_OPS} < $VALID_SRC > $OUT/data/valid.src
+apply_bpe -c $OUT/data/bpe-codes.${BPE_OPS} < $TEST_SRC > $OUT/data/test.src
 
 echo "Applying BPE on target"
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $TRAIN_TGT > $OUT/data/train.tgt
-$TF/tools/apply_bpe.py -c $OUT/data/bpe-codes.${BPE_OPS} <  $VALID_TGT > $OUT/data/valid.tgt
+apply_bpe -c $OUT/data/bpe-codes.${BPE_OPS} <  $TRAIN_TGT > $OUT/data/train.tgt
+apply_bpe -c $OUT/data/bpe-codes.${BPE_OPS} <  $VALID_TGT > $OUT/data/valid.tgt
 # We dont touch the test References, No BPE on them!
 cp $TEST_TGT $OUT/data/test.tgt
 
@@ -58,9 +59,10 @@ python ${TF}/preprocess.py -i ${OUT}/data \
 
 
 echo "Step 2: Train"
-CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt --data processed \
---batchsize 60 --tied --beam_size 5 --epoch 40 --layers 6 --multi_heads 8 --gpu 0 --dev_hyp $OUT/test/valid.out \
---test_hyp $OUT/test/test.out"
+CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt \
+--best_model_file $OUT/models/model_best_$NAME.ckpt --data processed --batchsize 60 --tied --beam_size 5 \
+--epoch 40 --layers 6 --multi_heads 8 --gpu 0 --metric bleu \
+--dev_hyp $OUT/test/valid.out --test_hyp $OUT/test/test.out"
 
 echo "Training command :: $CMD"
 eval "$CMD"
@@ -90,3 +92,5 @@ perl $TF/tools/multi-bleu.perl $OUT/data/valid.tgt < $OUT/test/valid.out > $OUT/
 perl $TF/tools/multi-bleu.perl -lc $OUT/data/valid.tgt < $OUT/test/valid.out > $OUT/test/valid.lc.bleu
 
 #===== EXPERIMENT END ======
+
+t2t-bleu --translation=$OUT/data/test.tgt --reference=$OUT/test/test.out
