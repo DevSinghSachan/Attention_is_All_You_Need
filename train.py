@@ -11,6 +11,7 @@ from time import time
 import torch
 import pickle
 import shutil
+import math
 
 import evaluator
 import net
@@ -92,7 +93,6 @@ class CalculateBleu(object):
         self.model.eval()
         references = []
         hypotheses = []
-        sent_count = 0
         for i in range(0, len(self.test_data), self.batch):
             sources, targets = zip(*self.test_data[i:i + self.batch])
             references.extend(t.tolist() for t in targets)
@@ -113,12 +113,11 @@ class CalculateBleu(object):
                 break
 
             # Log Progress
-            if (i + 1) % 100 == 0:
-                if self.max_sent is not None:
-                    den = self.max_sent
-                else:
-                    den = len(self.test_data)
-                print("> Completed: [ %d / %d ]" % (sent_count, den))
+            if self.max_sent is not None:
+                den = self.max_sent
+            else:
+                den = len(self.test_data)
+            print("> Completed: [ %d / %d ]" % (i, den), end='\r')
 
         bleu = evaluator.BLEUEvaluator().evaluate(references, hypotheses)
         print('BLEU:', bleu.score_str())

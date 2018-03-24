@@ -87,7 +87,8 @@ class LayerNorm(nn.Module):
             mu = mu.unsqueeze(1)
             sigma = sigma.unsqueeze(1)
         ln_out = (z - mu.expand_as(z)) / (sigma.expand_as(z) + self.eps)
-        ln_out = ln_out.mul(self.a_2.expand_as(ln_out)) + self.b_2.expand_as(ln_out)
+        ln_out = ln_out.mul(self.a_2.expand_as(ln_out)) + \
+                 self.b_2.expand_as(ln_out)
         return ln_out
 
 
@@ -110,8 +111,10 @@ def seq_func(func, x, reconstruct_shape=True, pad_remover=None):
 
     :param func: function to be applied to input x
     :param x: Tensor of batched sentence level word features
-    :param reconstruct_shape: boolean, if the output needs to be of the same shape as input x
-    :return: Tensor of shape (batchsize, dimension, sentence_length) or (batchsize x sentence_length, dimension)
+    :param reconstruct_shape: boolean, if the output needs to be
+    of the same shape as input x
+    :return: Tensor of shape (batchsize, dimension, sentence_length)
+    or (batchsize x sentence_length, dimension)
     """
     batch, units, length = x.shape
     e = torch.transpose(x, 1, 2).contiguous().view(batch * length, units)
@@ -129,7 +132,8 @@ def seq_func(func, x, reconstruct_shape=True, pad_remover=None):
 
 
 class LayerNormSent(LayerNorm):
-    """Position-wise layer-normalization layer for array of shape (batchsize, dimension, sentence_length)."""
+    """Position-wise layer-normalization layer for array of shape
+    (batchsize, dimension, sentence_length)."""
 
     def __init__(self, n_units, eps=1e-3):
         super(LayerNormSent, self).__init__(n_units, eps=eps)
@@ -140,7 +144,8 @@ class LayerNormSent(LayerNorm):
 
 
 class LinearSent(nn.Module):
-    """Position-wise Linear Layer for sentence block. array of shape (batchsize, dimension, sentence_length)."""
+    """Position-wise Linear Layer for sentence block. array of shape
+    (batchsize, dimension, sentence_length)."""
 
     def __init__(self, input_dim, output_dim, bias=True):
         super(LinearSent, self).__init__()
@@ -208,7 +213,8 @@ class MultiHeadAttention(nn.Module):
         _, _, n_keys = K.shape
 
         # Calculate attention scores with mask for zero-padded areas
-        # Perform multi-head attention using pseudo batching all together at once for efficiency
+        # Perform multi-head attention using pseudo batching all together
+        # at once for efficiency
         Q = torch.cat(torch.chunk(Q, h, dim=1), dim=0)
         K = torch.cat(torch.chunk(K, h, dim=1), dim=0)
         V = torch.cat(torch.chunk(V, h, dim=1), dim=0)
@@ -306,11 +312,12 @@ class DecoderLayer(nn.Module):
         self.dropout1 = nn.Dropout(layer_prepostprocess_dropout)
 
         if pos_attention:
-            position_encoding_block = Transformer.initialize_position_encoding(500, n_units)
-            self.position_encoding_block = nn.Parameter(torch.FloatTensor(position_encoding_block),
-                                                        requires_grad=False)
+            pos_enc_block = Transformer.initialize_position_encoding(500,
+                                                                     n_units)
+            self.pos_enc_block = nn.Parameter(torch.FloatTensor(pos_enc_block),
+                                              requires_grad=False)
             self.register_parameter("Position Encoding Block",
-                                    self.position_encoding_block)
+                                    self.pos_enc_block)
 
             self.ln_pos = LayerNormSent(n_units,
                                         eps=1e-3)
@@ -344,7 +351,7 @@ class DecoderLayer(nn.Module):
 
         if self.pos_attention:
             # e = self.ln_pos(e)
-            p = self.position_encoding_block[:, :, :length]
+            p = self.pos_enc_block[:, :, :length]
             p = p.expand(batch, units, length)
             sub = self.pos_attention(p,
                                      self.ln_pos(e),
@@ -605,8 +612,7 @@ class Transformer(nn.Module):
         # (batch, n_units, y_length)
 
         if get_prediction:
-            return self.output(h_block[:, :, -1]), \
-                   z_blocks
+            return self.output(h_block[:, :, -1]), z_blocks
         else:
             return self.output_and_loss(h_block,
                                         y_out_block)

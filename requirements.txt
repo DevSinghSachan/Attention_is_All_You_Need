@@ -1,6 +1,9 @@
-torch==0.4.0a0+5c641cc
+sentencepiece==0.0.4
+chainer==3.4.0
+tqdm==4.19.8
+scipy==1.0.0
+numpy==1.14.2
 torchtext==0.2.1
-six==1.10.0
-tqdm==4.19.5
-numpy==1.13.1
-progressbar2==3.34.3
+six==1.11.0
+torch==0.4.0a0+6c587e9
+progressbar2==3.36.0
