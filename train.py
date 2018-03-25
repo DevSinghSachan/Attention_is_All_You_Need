@@ -253,31 +253,28 @@ def main():
 
                 if args.metric == "accuracy":
                     score = valid_stats.accuracy()
-                elif args.metric == "bleu" and global_steps > 8000 == 0:
-                    bleu_score, _ = CalculateBleu(model,
+                elif args.metric == "bleu" and global_steps > 8000:
+                    score, _ = CalculateBleu(model,
                                                   dev_data,
                                                   'Dev Bleu',
                                                   batch=args.batchsize // 4,
                                                   beam_size=args.beam_size,
                                                   alpha=args.alpha,
                                                   max_sent=args.max_sent_eval)()
-                    score = bleu_score
-                # if args.metric == "bleu":
-                #     score = bleu_score
-                # elif args.metric == "accuracy":
-                #     score = valid_stats.accuracy()
 
-                is_best = score > best_score
-                best_score = max(score, best_score)
-                save_checkpoint({
-                    'epoch': epoch + 1,
-                    'state_dict': model.state_dict(),
-                    'best_score': best_score,
-                    'optimizer': optimizer.state_dict(),
-                    'opts': args,
-                }, is_best,
-                    args.model_file,
-                    args.best_model_file)
+                # Threshold Global Steps to save the model
+                if global_steps > 8000:
+                    is_best = score > best_score
+                    best_score = max(score, best_score)
+                    save_checkpoint({
+                        'epoch': epoch + 1,
+                        'state_dict': model.state_dict(),
+                        'best_score': best_score,
+                        'optimizer': optimizer.state_dict(),
+                        'opts': args,
+                    }, is_best,
+                        args.model_file,
+                        args.best_model_file)
 
     # BLEU score on Dev and Test Data
     checkpoint = torch.load(args.best_model_file)

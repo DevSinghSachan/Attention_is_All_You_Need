@@ -546,74 +546,21 @@ class Transformer(nn.Module):
         n_correct, n_total = utils.accuracy(logits_flat.data,
                                             concat_t_block.data,
                                             ignore_index=0)
-        #gtruth = concat_t_block
         if self.confidence < 1:
             tdata = concat_t_block.data
             mask = torch.nonzero(tdata.eq(self.padding_idx)).squeeze()
-            # log_likelihood = torch.gather(log_probs_flat.data, 1,
-            #                               tdata.unsqueeze(1))
             tmp_ = self.one_hot.repeat(concat_t_block.size(0), 1)
             tmp_.scatter_(1, tdata.unsqueeze(1), self.confidence)
             if mask.dim() > 0 and mask.numel() > 0:
-                # log_likelihood.index_fill_(0, mask, 0)
                 tmp_.index_fill_(0, mask, 0)
             concat_t_block = Variable(tmp_, requires_grad=False)
         loss = self.criterion(log_probs_flat,
                               concat_t_block)
-
         loss = loss.sum() / (weights.sum() + 1e-13)
         stats = utils.Statistics(loss=loss.data.cpu() * n_total,
                                  n_correct=n_correct,
                                  n_words=n_total)
         return loss, stats
-
-        # batch, units, length = h_block.shape
-        # # shape : (batch * sequence_length, num_classes)
-        # logits_flat = seq_func(self.affine,
-        #                        h_block,
-        #                        reconstruct_shape=False)
-        # rebatch, _ = logits_flat.shape
-        # concat_t_block = t_block.view(rebatch)
-        # weights = (concat_t_block >= 1).float()
-        # n_correct, n_total = utils.accuracy(logits_flat,
-        #                                     concat_t_block,
-        #                                     ignore_index=0)
-        #
-        # # shape : (batch * sequence_length, num_classes)
-        # log_probs_flat = F.log_softmax(logits_flat,
-        #                                dim=-1)
-        # # shape : (batch * max_len, 1)
-        # targets_flat = t_block.view(-1, 1).long()
-        # if self.label_smoothing is not None and self.label_smoothing > 0.0:
-        #     num_classes = logits_flat.size(-1)
-        #     smoothing_value = self.label_smoothing / (num_classes - 1)
-        #     # Fill all the correct indices with 1 - smoothing value.
-        #     one_hot_targets = input_like(log_probs_flat,
-        #                                  smoothing_value)
-        #     smoothed_targets = one_hot_targets.scatter_(-1,
-        #                                                 targets_flat,
-        #                                                 1.0 - self.label_smoothing)
-        #     negative_log_likelihood_flat = - log_probs_flat * smoothed_targets
-        #     negative_log_likelihood_flat = negative_log_likelihood_flat.sum(-1,
-        #                                                                     keepdim=True)
-        # else:
-        #     # Contribution to the negative log likelihood only comes from the exact indices
-        #     # of the targets, as the target distributions are one-hot. Here we use torch.gather
-        #     # to extract the indices of the num_classes dimension which contribute to the loss.
-        #     # shape : (batch * sequence_length, 1)
-        #     negative_log_likelihood_flat = - torch.gather(log_probs_flat,
-        #                                                   dim=1,
-        #                                                   index=targets_flat)
-        #
-        # # shape : (batch, sequence_length)
-        # negative_log_likelihood = negative_log_likelihood_flat.view(rebatch)
-        # negative_log_likelihood = negative_log_likelihood * weights
-        # # shape : (batch_size,)
-        # loss = negative_log_likelihood.sum() / (weights.sum() + 1e-13)
-        # stats = utils.Statistics(loss=utils.to_cpu(loss) * n_total,
-        #                          n_correct=utils.to_cpu(n_correct),
-        #                          n_words=n_total)
-        # return loss, stats
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False,
                 z_blocks=None):
