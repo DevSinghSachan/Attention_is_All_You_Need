@@ -558,7 +558,7 @@ class Transformer(nn.Module):
         loss = self.criterion(log_probs_flat, gtruth)
 
         loss = loss.sum() / (weights.sum() + 1e-13)
-        stats = utils.Statistics(loss=loss.data.clone() * n_total,
+        stats = utils.Statistics(loss=loss.data.cpu().clone() * n_total,
                                  n_correct=n_correct,
                                  n_words=n_total)
         return loss, stats

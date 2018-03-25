@@ -165,7 +165,12 @@ class Statistics(object):
         return 100 * (self.n_correct / self.n_words)
 
     def ppl(self):
-        return math.exp(min(self.loss / self.n_words, 100))
+        avg_loss = self.loss / self.n_words
+        if (avg_loss < 100).all():
+            return math.exp(avg_loss)
+        else:
+            return math.exp(100)
+        # return math.exp(min(self.loss / self.n_words, 100))
 
     def elapsed_time(self):
         return time.time() - self.start_time
