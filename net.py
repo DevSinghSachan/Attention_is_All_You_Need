@@ -470,7 +470,8 @@ class Transformer(nn.Module):
             # If label smoothing value is set to zero, the loss
             # is equivalent to NLLLoss or CrossEntropyLoss.
             # All non-true labels are uniformly set to low-confidence.
-            self.criterion = nn.KLDivLoss(size_average=False)
+            self.criterion = nn.KLDivLoss(size_average=False,
+                                          reduce=True)
             one_hot = torch.randn(1, config.n_vocab)
             one_hot.fill_(self.label_smoothing / (config.n_vocab - 2))
             one_hot[0][self.padding_idx] = 0
@@ -478,7 +479,8 @@ class Transformer(nn.Module):
         else:
             weight = torch.ones(config.n_vocab)
             weight[self.padding_idx] = 0
-            self.criterion = nn.NLLLoss(weight, size_average=False)
+            self.criterion = nn.NLLLoss(weight,
+                                        size_average=False)
         self.confidence = 1.0 - self.label_smoothing
 
     @staticmethod
@@ -544,18 +546,20 @@ class Transformer(nn.Module):
         n_correct, n_total = utils.accuracy(logits_flat.data,
                                             concat_t_block.data,
                                             ignore_index=0)
-        gtruth = concat_t_block
+        #gtruth = concat_t_block
         if self.confidence < 1:
-            tdata = gtruth.data
+            tdata = concat_t_block.data
             mask = torch.nonzero(tdata.eq(self.padding_idx)).squeeze()
-            log_likelihood = torch.gather(log_probs_flat.data, 1, tdata.unsqueeze(1))
-            tmp_ = self.one_hot.repeat(gtruth.size(0), 1)
+            # log_likelihood = torch.gather(log_probs_flat.data, 1,
+            #                               tdata.unsqueeze(1))
+            tmp_ = self.one_hot.repeat(concat_t_block.size(0), 1)
             tmp_.scatter_(1, tdata.unsqueeze(1), self.confidence)
             if mask.dim() > 0:
-                log_likelihood.index_fill_(0, mask, 0)
+                # log_likelihood.index_fill_(0, mask, 0)
                 tmp_.index_fill_(0, mask, 0)
-            gtruth = Variable(tmp_, requires_grad=False)
-        loss = self.criterion(log_probs_flat, gtruth)
+            concat_t_block = Variable(tmp_, requires_grad=False)
+        loss = self.criterion(log_probs_flat,
+                              concat_t_block)
 
         loss = loss.sum() / (weights.sum() + 1e-13)
         stats = utils.Statistics(loss=loss.data.cpu().clone() * n_total,
@@ -563,30 +567,6 @@ class Transformer(nn.Module):
                                  n_words=n_total)
         return loss, stats
 
-        #
-        # # gtruth = target.view(-1)
-        # if self.confidence < 1:
-        #     tdata = gtruth.data
-        #     mask = torch.nonzero(tdata.eq(self.padding_idx)).squeeze()
-        #     log_likelihood = torch.gather(scores.data, 1, tdata.unsqueeze(1))
-        #     tmp_ = self.one_hot.repeat(gtruth.size(0), 1)
-        #     tmp_.scatter_(1, tdata.unsqueeze(1), self.confidence)
-        #     if mask.dim() > 0:
-        #         log_likelihood.index_fill_(0, mask, 0)
-        #         tmp_.index_fill_(0, mask, 0)
-        #     gtruth = Variable(tmp_, requires_grad=False)
-        # loss = self.criterion(scores, gtruth)
-        # if self.confidence < 1:
-        #     # Default: report smoothed ppl.
-        #     # loss_data = -log_likelihood.sum(0)
-        #     loss_data = loss.data.clone()
-        # else:
-        #     loss_data = loss.data.clone()
-        #
-        # stats = self._stats(loss_data, scores.data, target.view(-1).data)
-        #
-        #
-        #
         # batch, units, length = h_block.shape
         # # shape : (batch * sequence_length, num_classes)
         # logits_flat = seq_func(self.affine,

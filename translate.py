@@ -58,7 +58,7 @@ def main():
 
     checkpoint = torch.load(args.best_model_file)
     print("=> loaded checkpoint '{}' (epoch {}, best score {})".
-          format(args.model_file,
+          format(args.best_model_file,
                  checkpoint['epoch'],
                  checkpoint['best_score']))
     config = checkpoint['opts']

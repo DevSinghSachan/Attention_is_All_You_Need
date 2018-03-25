@@ -94,5 +94,17 @@ perl $TF/tools/multi-bleu.perl $OUT/data/valid.tgt < $OUT/test/valid.out > $OUT/
 perl $TF/tools/multi-bleu.perl -lc $OUT/data/valid.tgt < $OUT/test/valid.out > $OUT/test/valid.lc.bleu
 
 #===== EXPERIMENT END ======
-
 t2t-bleu --translation=$OUT/data/test.tgt --reference=$OUT/test/test.out
+
+
+exit
+# Secondary commands to translate using translate.py
+NAME="run_wmt16_de_en"
+OUT="/storage/devendra/temp/$NAME"
+python translate.py -i $OUT/data --data processed --batchsize 28 --beam_size 5 \
+--best_model_file $OUT/models/model_best_$NAME.ckpt --src $OUT/data/valid.src \
+--gpu 0 --output $OUT/test/valid.out
+
+mv $OUT/test/valid.out{,.bpe}
+cat $OUT/test/valid.out.bpe | sed -E 's/(@@ )|(@@ ?$)//g' > $OUT/test/valid.out
+t2t-bleu --translation=$OUT/test/valid.out --reference=/storage/devendra/temp/wmt16_de_en/newstest2014.tok.de

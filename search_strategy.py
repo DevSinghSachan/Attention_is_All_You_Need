@@ -137,6 +137,7 @@ class BeamSearch(object):
     def generate_output(self, model, x_block):
         x_block = utils.source_pad_concat_convert(x_block, device=None)
         batchsize, x_length = x_block.shape
+        # self.max_decode_length = x_length + 50
 
         x_block = Variable(torch.LongTensor(x_block).type(utils.LONG_TYPE), requires_grad=False)
         bos_array = np.array([[preprocess.Vocab_Pad.BOS]] * batchsize, 'i')
@@ -178,6 +179,7 @@ class GreedySearch(object):
     def generate_output(self, model, x_block):
         x_block = utils.source_pad_concat_convert(x_block, device=None)
         batch, x_length = x_block.shape
+        # self.max_decode_length = x_length + 50
         # bos
         y_block = np.full((batch, 1), preprocess.Vocab_Pad.BOS,
                           dtype=x_block.dtype)
