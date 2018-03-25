@@ -240,7 +240,8 @@ class MultiHeadAttention(nn.Module):
         Q = Q.transpose(1, 2).contiguous() * self.scale_score
         batch_A = torch.bmm(Q, K)
 
-        batch_A = batch_A.masked_fill(1. - mask, -np.inf)
+        # batch_A = batch_A.masked_fill(1. - mask, -np.inf) # Works in v0.4
+        batch_A = batch_A.masked_fill(mask == 0, -1e18)
         batch_A = F.softmax(batch_A, dim=2)
 
         # Replaces 'NaN' with zeros and other values with the original ones
