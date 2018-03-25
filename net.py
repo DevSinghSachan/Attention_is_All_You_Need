@@ -64,32 +64,45 @@ class ScaledEmbedding(nn.Embedding):
             self.weight.data[self.padding_idx].fill_(0)
 
 
+# class LayerNorm(nn.Module):
+#     """Layer normalization module.
+#     Code adapted from OpenNMT-py open-source toolkit on 08/01/2018:
+#     URL: https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/modules/UtilClass.py#L24"""
+#
+#     def __init__(self, d_hid, eps=1e-3):
+#         super(LayerNorm, self).__init__()
+#         self.eps = eps
+#         self.a_2 = nn.Parameter(torch.ones(d_hid),
+#                                 requires_grad=True)
+#         self.b_2 = nn.Parameter(torch.zeros(d_hid),
+#                                 requires_grad=True)
+#
+#     def forward(self, z):
+#         if z.size(1) == 1:
+#             return z
+#         mu = torch.mean(z, dim=1)
+#         sigma = torch.std(z, dim=1)
+#         # HACK. PyTorch is changing behavior
+#         if mu.dim() == 1:
+#             mu = mu.unsqueeze(1)
+#             sigma = sigma.unsqueeze(1)
+#         ln_out = (z - mu.expand_as(z)) / (sigma.expand_as(z) + self.eps)
+#         ln_out = ln_out.mul(self.a_2.expand_as(ln_out)) + \
+#                  self.b_2.expand_as(ln_out)
+#         return ln_out
+
+
 class LayerNorm(nn.Module):
-    """Layer normalization module.
-    Code adapted from OpenNMT-py open-source toolkit on 08/01/2018:
-    URL: https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/modules/UtilClass.py#L24"""
-
-    def __init__(self, d_hid, eps=1e-3):
+    def __init__(self, features, eps=1e-6):
         super(LayerNorm, self).__init__()
+        self.a_2 = nn.Parameter(torch.ones(features))
+        self.b_2 = nn.Parameter(torch.zeros(features))
         self.eps = eps
-        self.a_2 = nn.Parameter(torch.ones(d_hid),
-                                requires_grad=True)
-        self.b_2 = nn.Parameter(torch.zeros(d_hid),
-                                requires_grad=True)
 
-    def forward(self, z):
-        if z.size(1) == 1:
-            return z
-        mu = torch.mean(z, dim=1)
-        sigma = torch.std(z, dim=1)
-        # HACK. PyTorch is changing behavior
-        if mu.dim() == 1:
-            mu = mu.unsqueeze(1)
-            sigma = sigma.unsqueeze(1)
-        ln_out = (z - mu.expand_as(z)) / (sigma.expand_as(z) + self.eps)
-        ln_out = ln_out.mul(self.a_2.expand_as(ln_out)) + \
-                 self.b_2.expand_as(ln_out)
-        return ln_out
+    def forward(self, x):
+        mean = x.mean(-1, keepdim=True)
+        std = x.std(-1, keepdim=True)
+        return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
 
 
 def sentence_block_embed(embed, x):
@@ -255,8 +268,8 @@ class FeedForwardLayer(nn.Module):
     def __init__(self, n_units, n_hidden, relu_dropout=0.1):
         super(FeedForwardLayer, self).__init__()
         self.W_1 = LinearSent(n_units, n_hidden)
-        self.act = nn.ReLU()
-        self.dropout = nn.Dropout(relu_dropout)
+        self.act = nn.ReLU(inplace=True)
+        self.dropout = nn.Dropout(relu_dropout, inplace=True)
         self.W_2 = LinearSent(n_hidden, n_units)
 
     def forward(self, e, pad_remover=None):

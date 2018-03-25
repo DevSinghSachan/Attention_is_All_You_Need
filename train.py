@@ -218,10 +218,12 @@ def main():
                                        time_s, report_stats, args.report_every)
 
             if (global_steps + 1) % args.eval_steps == 0:
-                dev_iter = data.iterator.pool(dev_data, args.batchsize // 4,
+                dev_iter = data.iterator.pool(dev_data,
+                                              args.wbatchsize,
                                               key=lambda x:
                                               data.utils.interleave_keys(len(x[0]),
                                                                          len(x[1])),
+                                              batch_size_fn=batch_size_func,
                                               random_shuffler=data.iterator.
                                               RandomShuffler())
 
