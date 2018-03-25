@@ -64,34 +64,6 @@ class ScaledEmbedding(nn.Embedding):
             self.weight.data[self.padding_idx].fill_(0)
 
 
-# class LayerNorm(nn.Module):
-#     """Layer normalization module.
-#     Code adapted from OpenNMT-py open-source toolkit on 08/01/2018:
-#     URL: https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/modules/UtilClass.py#L24"""
-#
-#     def __init__(self, d_hid, eps=1e-3):
-#         super(LayerNorm, self).__init__()
-#         self.eps = eps
-#         self.a_2 = nn.Parameter(torch.ones(d_hid),
-#                                 requires_grad=True)
-#         self.b_2 = nn.Parameter(torch.zeros(d_hid),
-#                                 requires_grad=True)
-#
-#     def forward(self, z):
-#         if z.size(1) == 1:
-#             return z
-#         mu = torch.mean(z, dim=1)
-#         sigma = torch.std(z, dim=1)
-#         # HACK. PyTorch is changing behavior
-#         if mu.dim() == 1:
-#             mu = mu.unsqueeze(1)
-#             sigma = sigma.unsqueeze(1)
-#         ln_out = (z - mu.expand_as(z)) / (sigma.expand_as(z) + self.eps)
-#         ln_out = ln_out.mul(self.a_2.expand_as(ln_out)) + \
-#                  self.b_2.expand_as(ln_out)
-#         return ln_out
-
-
 class LayerNorm(nn.Module):
     def __init__(self, features, eps=1e-6):
         super(LayerNorm, self).__init__()
@@ -444,9 +416,17 @@ class Decoder(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, config):
         super(Transformer, self).__init__()
+        self.scale_emb = config.n_units ** 0.5
+        self.padding_idx = 0
         self.embed_word = ScaledEmbedding(config.n_vocab,
                                           config.n_units,
-                                          padding_idx=0)
+                                          padding_idx=self.padding_idx)
+        pos_enc_block = self.initialize_position_encoding(config.max_length,
+                                                          config.n_units)
+        self.pos_enc_block = nn.Parameter(torch.FloatTensor(pos_enc_block),
+                                          requires_grad=False)
+        self.register_parameter("Position Encoding Block",
+                                self.pos_enc_block)
         self.embed_dropout = nn.Dropout(config.dropout)
         self.n_hidden = config.n_units * 4
         self.encoder = Encoder(config.layers,
@@ -470,25 +450,36 @@ class Transformer(nn.Module):
             self.embed_pos = nn.Embedding(config.max_length,
                                           config.n_units,
                                           padding_idx=0)
-
         if config.tied:
             self.affine = self.tied_linear
+            self.affine_bias = nn.Parameter(torch.Tensor(config.n_vocab))
+            stdv = 1. / math.sqrt(config.n_units)
+            self.affine_bias.data.uniform_(-stdv, stdv)
         else:
             self.affine = nn.Linear(config.n_units,
                                     config.n_vocab,
                                     bias=True)
-
         self.n_target_vocab = config.n_vocab
         self.dropout = config.dropout
         self.label_smoothing = config.label_smoothing
-        self.scale_emb = config.n_units ** 0.5
-
-        pos_enc_block = self.initialize_position_encoding(config.max_length,
-                                                          config.n_units)
-        self.pos_enc_block = nn.Parameter(torch.FloatTensor(pos_enc_block),
-                                          requires_grad=False)
-        self.register_parameter("Position Encoding Block",
-                                self.pos_enc_block)
+        assert (0.0 <= self.label_smoothing <= 1.0)
+        if self.label_smoothing > 0:
+            # When label smoothing is turned on,
+            # KL-divergence between q_{smoothed ground truth prob.}(w)
+            # and p_{prob. computed by model}(w) is minimized.
+            # If label smoothing value is set to zero, the loss
+            # is equivalent to NLLLoss or CrossEntropyLoss.
+            # All non-true labels are uniformly set to low-confidence.
+            self.criterion = nn.KLDivLoss(size_average=False)
+            one_hot = torch.randn(1, config.n_vocab)
+            one_hot.fill_(self.label_smoothing / (config.n_vocab - 2))
+            one_hot[0][self.padding_idx] = 0
+            self.register_buffer('one_hot', one_hot)
+        else:
+            weight = torch.ones(config.n_vocab)
+            weight[self.padding_idx] = 0
+            self.criterion = nn.NLLLoss(weight, size_average=False)
+        self.confidence = 1.0 - self.label_smoothing
 
     @staticmethod
     def initialize_position_encoding(length, emb_dim):
@@ -533,7 +524,7 @@ class Transformer(nn.Module):
         return history_mask
 
     def tied_linear(self, h):
-        return F.linear(h, self.embed_word.weight)
+        return F.linear(h, self.embed_word.weight, self.affine_bias)
 
     def output(self, h):
         return self.affine(h)
@@ -544,49 +535,105 @@ class Transformer(nn.Module):
         logits_flat = seq_func(self.affine,
                                h_block,
                                reconstruct_shape=False)
-        rebatch, _ = logits_flat.shape
-        concat_t_block = t_block.view(rebatch)
-        weights = (concat_t_block >= 1).float()
-        n_correct, n_total = utils.accuracy(logits_flat,
-                                            concat_t_block,
-                                            ignore_index=0)
-
         # shape : (batch * sequence_length, num_classes)
         log_probs_flat = F.log_softmax(logits_flat,
                                        dim=-1)
-        # shape : (batch * max_len, 1)
-        targets_flat = t_block.view(-1, 1).long()
+        rebatch, _ = logits_flat.shape
+        concat_t_block = t_block.view(rebatch)
+        weights = (concat_t_block >= 1).float()
+        n_correct, n_total = utils.accuracy(logits_flat.data,
+                                            concat_t_block.data,
+                                            ignore_index=0)
+        gtruth = concat_t_block
+        if self.confidence < 1:
+            tdata = gtruth.data
+            mask = torch.nonzero(tdata.eq(self.padding_idx)).squeeze()
+            log_likelihood = torch.gather(log_probs_flat.data, 1, tdata.unsqueeze(1))
+            tmp_ = self.one_hot.repeat(gtruth.size(0), 1)
+            tmp_.scatter_(1, tdata.unsqueeze(1), self.confidence)
+            if mask.dim() > 0:
+                log_likelihood.index_fill_(0, mask, 0)
+                tmp_.index_fill_(0, mask, 0)
+            gtruth = Variable(tmp_, requires_grad=False)
+        loss = self.criterion(log_probs_flat, gtruth)
 
-        if self.label_smoothing is not None and self.label_smoothing > 0.0:
-            num_classes = logits_flat.size(-1)
-            smoothing_value = self.label_smoothing / (num_classes - 1)
-            # Fill all the correct indices with 1 - smoothing value.
-            one_hot_targets = input_like(log_probs_flat,
-                                         smoothing_value)
-            smoothed_targets = one_hot_targets.scatter_(-1,
-                                                        targets_flat,
-                                                        1.0 - self.label_smoothing)
-            negative_log_likelihood_flat = - log_probs_flat * smoothed_targets
-            negative_log_likelihood_flat = negative_log_likelihood_flat.sum(-1,
-                                                                            keepdim=True)
-        else:
-            # Contribution to the negative log likelihood only comes from the exact indices
-            # of the targets, as the target distributions are one-hot. Here we use torch.gather
-            # to extract the indices of the num_classes dimension which contribute to the loss.
-            # shape : (batch * sequence_length, 1)
-            negative_log_likelihood_flat = - torch.gather(log_probs_flat,
-                                                          dim=1,
-                                                          index=targets_flat)
-
-        # shape : (batch, sequence_length)
-        negative_log_likelihood = negative_log_likelihood_flat.view(rebatch)
-        negative_log_likelihood = negative_log_likelihood * weights
-        # shape : (batch_size,)
-        loss = negative_log_likelihood.sum() / (weights.sum() + 1e-13)
-        stats = utils.Statistics(loss=utils.to_cpu(loss) * n_total,
-                                 n_correct=utils.to_cpu(n_correct),
+        loss = loss.sum() / (weights.sum() + 1e-13)
+        stats = utils.Statistics(loss=loss.data.clone() * n_total,
+                                 n_correct=n_correct,
                                  n_words=n_total)
         return loss, stats
+
+        #
+        # # gtruth = target.view(-1)
+        # if self.confidence < 1:
+        #     tdata = gtruth.data
+        #     mask = torch.nonzero(tdata.eq(self.padding_idx)).squeeze()
+        #     log_likelihood = torch.gather(scores.data, 1, tdata.unsqueeze(1))
+        #     tmp_ = self.one_hot.repeat(gtruth.size(0), 1)
+        #     tmp_.scatter_(1, tdata.unsqueeze(1), self.confidence)
+        #     if mask.dim() > 0:
+        #         log_likelihood.index_fill_(0, mask, 0)
+        #         tmp_.index_fill_(0, mask, 0)
+        #     gtruth = Variable(tmp_, requires_grad=False)
+        # loss = self.criterion(scores, gtruth)
+        # if self.confidence < 1:
+        #     # Default: report smoothed ppl.
+        #     # loss_data = -log_likelihood.sum(0)
+        #     loss_data = loss.data.clone()
+        # else:
+        #     loss_data = loss.data.clone()
+        #
+        # stats = self._stats(loss_data, scores.data, target.view(-1).data)
+        #
+        #
+        #
+        # batch, units, length = h_block.shape
+        # # shape : (batch * sequence_length, num_classes)
+        # logits_flat = seq_func(self.affine,
+        #                        h_block,
+        #                        reconstruct_shape=False)
+        # rebatch, _ = logits_flat.shape
+        # concat_t_block = t_block.view(rebatch)
+        # weights = (concat_t_block >= 1).float()
+        # n_correct, n_total = utils.accuracy(logits_flat,
+        #                                     concat_t_block,
+        #                                     ignore_index=0)
+        #
+        # # shape : (batch * sequence_length, num_classes)
+        # log_probs_flat = F.log_softmax(logits_flat,
+        #                                dim=-1)
+        # # shape : (batch * max_len, 1)
+        # targets_flat = t_block.view(-1, 1).long()
+        # if self.label_smoothing is not None and self.label_smoothing > 0.0:
+        #     num_classes = logits_flat.size(-1)
+        #     smoothing_value = self.label_smoothing / (num_classes - 1)
+        #     # Fill all the correct indices with 1 - smoothing value.
+        #     one_hot_targets = input_like(log_probs_flat,
+        #                                  smoothing_value)
+        #     smoothed_targets = one_hot_targets.scatter_(-1,
+        #                                                 targets_flat,
+        #                                                 1.0 - self.label_smoothing)
+        #     negative_log_likelihood_flat = - log_probs_flat * smoothed_targets
+        #     negative_log_likelihood_flat = negative_log_likelihood_flat.sum(-1,
+        #                                                                     keepdim=True)
+        # else:
+        #     # Contribution to the negative log likelihood only comes from the exact indices
+        #     # of the targets, as the target distributions are one-hot. Here we use torch.gather
+        #     # to extract the indices of the num_classes dimension which contribute to the loss.
+        #     # shape : (batch * sequence_length, 1)
+        #     negative_log_likelihood_flat = - torch.gather(log_probs_flat,
+        #                                                   dim=1,
+        #                                                   index=targets_flat)
+        #
+        # # shape : (batch, sequence_length)
+        # negative_log_likelihood = negative_log_likelihood_flat.view(rebatch)
+        # negative_log_likelihood = negative_log_likelihood * weights
+        # # shape : (batch_size,)
+        # loss = negative_log_likelihood.sum() / (weights.sum() + 1e-13)
+        # stats = utils.Statistics(loss=utils.to_cpu(loss) * n_total,
+        #                          n_correct=utils.to_cpu(n_correct),
+        #                          n_words=n_total)
+        # return loss, stats
 
     def forward(self, x_block, y_in_block, y_out_block, get_prediction=False,
                 z_blocks=None):

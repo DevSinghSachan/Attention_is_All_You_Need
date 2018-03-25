@@ -38,12 +38,13 @@ class Accuracy(object):
             mask = (t == self.ignore_index)
             ignore_cnt = torch.sum(mask.float())
             _, pred = torch.max(y, dim=1)
-            pred = pred.view(t.shape)
-            pred = pred.masked_fill(mask, self.ignore_index)
-            count = torch.sum((pred == t).float()) - ignore_cnt
+            pred = Variable(pred.view(t.shape))
+            pred = pred.masked_fill(Variable(mask),
+                                    self.ignore_index)
+            count = torch.sum((pred.data == t).float()) - ignore_cnt
             total = torch.numel(t) - ignore_cnt
 
-            if (total.data == 0).all():
+            if total == 0:
                 return torch.FloatTensor([0.0])
             else:
                 # return count / total
@@ -164,12 +165,7 @@ class Statistics(object):
         return 100 * (self.n_correct / self.n_words)
 
     def ppl(self):
-        avg_loss = self.loss / self.n_words
-        if (avg_loss.data < 100).all():
-            return math.exp(avg_loss)
-        else:
-            return math.exp(100)
-        # return math.exp(min(self.loss / self.n_words, 100))
+        return math.exp(min(self.loss / self.n_words, 100))
 
     def elapsed_time(self):
         return time.time() - self.start_time
