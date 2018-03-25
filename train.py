@@ -185,7 +185,7 @@ def main():
     src_data, trg_data = list(zip(*train_data))
     total_src_words = len(list(itertools.chain.from_iterable(src_data)))
     total_trg_words = len(list(itertools.chain.from_iterable(trg_data)))
-    iter_per_epoch = (total_src_words + total_trg_words) // args.wbatchsize
+    iter_per_epoch = (total_src_words + total_trg_words) // (2 *args.wbatchsize)
     print('Approximate number of iter/epoch =', iter_per_epoch)
     time_s = time()
 
@@ -229,7 +229,7 @@ def main():
             report_stats = report_func(epoch, num_steps, iter_per_epoch,
                                        time_s, report_stats, args.report_every)
 
-            if (global_steps + 1) % args.eval_steps == 0:
+            if (global_steps + 1) % args.eval_steps and global_steps > 8000 == 0:
                 dev_iter = data.iterator.pool(dev_data,
                                               args.wbatchsize,
                                               key=lambda x: (len(x[0]), len(x[1])),
