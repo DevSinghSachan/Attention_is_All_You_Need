@@ -198,8 +198,8 @@ def main():
                                         #data.utils.interleave_keys(len(x[0]),
                                         #                           len(x[1])),
                                         batch_size_fn=batch_size_fn,
-                                        random_shuffler=data.iterator.
-                                        RandomShuffler())
+                                        random_shuffler=
+                                        data.iterator.RandomShuffler())
         report_stats = utils.Statistics()
         train_stats = utils.Statistics()
         valid_stats = utils.Statistics()
@@ -229,7 +229,7 @@ def main():
             report_stats = report_func(epoch, num_steps, iter_per_epoch,
                                        time_s, report_stats, args.report_every)
 
-            if (global_steps + 1) % args.eval_steps and global_steps > 8000 == 0:
+            if (global_steps + 1) % args.eval_steps:
                 dev_iter = data.iterator.pool(dev_data,
                                               args.wbatchsize,
                                               key=lambda x: (len(x[0]), len(x[1])),
@@ -253,7 +253,7 @@ def main():
 
                 if args.metric == "accuracy":
                     score = valid_stats.accuracy()
-                elif args.metric == "bleu":
+                elif args.metric == "bleu" and global_steps > 8000 == 0:
                     bleu_score, _ = CalculateBleu(model,
                                                   dev_data,
                                                   'Dev Bleu',

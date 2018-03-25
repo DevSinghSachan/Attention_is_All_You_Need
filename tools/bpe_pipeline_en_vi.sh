@@ -30,8 +30,8 @@ echo "Output dir = $OUT"
 [ -d $OUT/test ] || mkdir -p  $OUT/test
 
 
+<<COMMENT
 echo "Step 1a: Preprocess inputs"
-
 
 echo "Learning BPE on source and target combined"
 cat ${TRAIN_SRC} ${TRAIN_TGT} | learn_bpe -s ${BPE_OPS} > $OUT/data/bpe-codes.${BPE_OPS}
@@ -58,12 +58,12 @@ python ${TF}/preprocess.py -i ${OUT}/data \
       -s-test test.src \
       -t-test test.tgt \
       --save_data processed
-
+COMMENT
 
 echo "Step 2: Train"
 CMD="python $TF/train.py -i $OUT/data --data processed --model_file $OUT/models/model_$NAME.ckpt \
---best_model_file $OUT/models/model_best_$NAME.ckpt --data processed --batchsize 60 --tied --beam_size 5 \
---epoch 40 --layers 6 --multi_heads 8 --gpu 0 --metric bleu \
+--best_model_file $OUT/models/model_best_$NAME.ckpt --data processed --batchsize 30 --tied --beam_size 5 \
+--epoch 40 --layers 6 --multi_heads 8 --gpu 0 --metric bleu --wbatchsize 3000 \
 --dev_hyp $OUT/test/valid.out --test_hyp $OUT/test/test.out"
 
 echo "Training command :: $CMD"

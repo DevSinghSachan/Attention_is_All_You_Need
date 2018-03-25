@@ -554,7 +554,7 @@ class Transformer(nn.Module):
             #                               tdata.unsqueeze(1))
             tmp_ = self.one_hot.repeat(concat_t_block.size(0), 1)
             tmp_.scatter_(1, tdata.unsqueeze(1), self.confidence)
-            if mask.dim() > 0:
+            if mask.dim() > 0 and mask.numel() > 0:
                 # log_likelihood.index_fill_(0, mask, 0)
                 tmp_.index_fill_(0, mask, 0)
             concat_t_block = Variable(tmp_, requires_grad=False)
