@@ -241,8 +241,8 @@ class FeedForwardLayer(nn.Module):
     def __init__(self, n_units, n_hidden, relu_dropout=0.1):
         super(FeedForwardLayer, self).__init__()
         self.W_1 = LinearSent(n_units, n_hidden)
-        self.act = nn.ReLU(inplace=True)
-        self.dropout = nn.Dropout(relu_dropout, inplace=True)
+        self.act = nn.ReLU()
+        self.dropout = nn.Dropout(relu_dropout)
         self.W_2 = LinearSent(n_hidden, n_units)
 
     def forward(self, e, pad_remover=None):
@@ -562,7 +562,7 @@ class Transformer(nn.Module):
                               concat_t_block)
 
         loss = loss.sum() / (weights.sum() + 1e-13)
-        stats = utils.Statistics(loss=loss.data.cpu().clone() * n_total,
+        stats = utils.Statistics(loss=loss.data.cpu() * n_total,
                                  n_correct=n_correct,
                                  n_words=n_total)
         return loss, stats

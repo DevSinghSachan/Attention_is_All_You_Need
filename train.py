@@ -27,9 +27,21 @@ def save_checkpoint(state, is_best, model_path_, best_model_path_):
         shutil.copyfile(model_path_, best_model_path_)
 
 
-def batch_size_func(new, count, sofar):
-    # return sofar + len(new[0]) + len(new[1])
-    return sofar + (2 * max(len(new[0]), len(new[1])))
+# def batch_size_fn(new, count, sofar):
+#     # return sofar + len(new[0]) + len(new[1])
+#     return sofar + (2 * max(len(new[0]), len(new[1])))
+
+global max_src_in_batch, max_tgt_in_batch
+def batch_size_fn(new, count, sofar):
+    global max_src_in_batch, max_tgt_in_batch
+    if count == 1:
+        max_src_in_batch = 0
+        max_tgt_in_batch = 0
+    max_src_in_batch = max(max_src_in_batch,  len(new[0]) + 2)
+    max_tgt_in_batch = max(max_tgt_in_batch,  len(new[1]) + 1)
+    src_elements = count * max_src_in_batch
+    tgt_elements = count * max_tgt_in_batch
+    return max(src_elements, tgt_elements)
 
 
 def save_output(hypotheses, vocab, outf):
@@ -182,10 +194,10 @@ def main():
         random.shuffle(train_data)
         train_iter = data.iterator.pool(train_data,
                                         args.wbatchsize,
-                                        key=lambda x:
-                                        data.utils.interleave_keys(len(x[0]),
-                                                                   len(x[1])),
-                                        batch_size_fn=batch_size_func,
+                                        key=lambda x: (len(x[0]), len(x[1])),
+                                        #data.utils.interleave_keys(len(x[0]),
+                                        #                           len(x[1])),
+                                        batch_size_fn=batch_size_fn,
                                         random_shuffler=data.iterator.
                                         RandomShuffler())
         report_stats = utils.Statistics()
@@ -220,10 +232,10 @@ def main():
             if (global_steps + 1) % args.eval_steps == 0:
                 dev_iter = data.iterator.pool(dev_data,
                                               args.wbatchsize,
-                                              key=lambda x:
-                                              data.utils.interleave_keys(len(x[0]),
-                                                                         len(x[1])),
-                                              batch_size_fn=batch_size_func,
+                                              key=lambda x: (len(x[0]), len(x[1])),
+                                              #data.utils.interleave_keys(len(x[0]),
+                                              #                           len(x[1])),
+                                              batch_size_fn=batch_size_fn,
                                               random_shuffler=data.iterator.
                                               RandomShuffler())
 
@@ -239,17 +251,21 @@ def main():
                 print('Validation perplexity: %g' % valid_stats.ppl())
                 print('Validation accuracy: %g' % valid_stats.accuracy())
 
-                bleu_score, _ = CalculateBleu(model,
-                                              dev_data,
-                                              'Dev Bleu',
-                                              batch=args.batchsize // 4,
-                                              beam_size=args.beam_size,
-                                              alpha=args.alpha,
-                                              max_sent=args.max_sent_eval)()
-                if args.metric == "bleu":
-                    score = bleu_score
-                elif args.metric == "accuracy":
+                if args.metric == "accuracy":
                     score = valid_stats.accuracy()
+                elif args.metric == "bleu":
+                    bleu_score, _ = CalculateBleu(model,
+                                                  dev_data,
+                                                  'Dev Bleu',
+                                                  batch=args.batchsize // 4,
+                                                  beam_size=args.beam_size,
+                                                  alpha=args.alpha,
+                                                  max_sent=args.max_sent_eval)()
+                    score = bleu_score
+                # if args.metric == "bleu":
+                #     score = bleu_score
+                # elif args.metric == "accuracy":
+                #     score = valid_stats.accuracy()
 
                 is_best = score > best_score
                 best_score = max(score, best_score)
