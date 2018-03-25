@@ -229,7 +229,7 @@ def main():
             report_stats = report_func(epoch, num_steps, iter_per_epoch,
                                        time_s, report_stats, args.report_every)
 
-            if (global_steps + 1) % args.eval_steps:
+            if (global_steps + 1) % args.eval_steps == 0:
                 dev_iter = data.iterator.pool(dev_data,
                                               args.wbatchsize,
                                               key=lambda x: (len(x[0]), len(x[1])),
