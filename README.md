@@ -1,5 +1,7 @@
 ## Attention is All you Need (Transformer)
 
+This repository is deprecated. Please refer to the updated codebase here: <https://github.com/DevSinghSachan/multilingual_nmt>
+
 This repository implements the `transformer` model in *pytorch* framework which was introduced in the paper *[Attention is All you Need](https://arxiv.org/abs/1706.03762)* as described in their
 NIPS 2017 version: https://papers.nips.cc/paper/7181-attention-is-all-you-need.pdf
 
